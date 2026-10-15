@@ -1,0 +1,10 @@
+Django>=5.2,<5.3
+djangorestframework
+djangorestframework-simplejwt
+psycopg[binary]
+celery[redis]
+django-storages[s3]
+cryptography
+pypdf
+reportlab
+django-cors-headers
