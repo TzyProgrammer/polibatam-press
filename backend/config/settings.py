@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from botocore.config import Config
@@ -22,9 +23,16 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework_simplejwt",
     "corsheaders",
     "storages",
     "core",
+    "apps.accounts",
+    "apps.catalog",
+    "apps.orders",
+    "apps.drm",
+    "apps.isbn",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -69,6 +77,8 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = "accounts.User"
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -84,12 +94,25 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+def env_list(name):
+    return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
+
+
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 # Celery (Valkey kompatibel dengan protokol Redis)
