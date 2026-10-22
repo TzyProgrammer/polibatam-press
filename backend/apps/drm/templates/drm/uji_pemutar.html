@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Uji Pemutar Audiobook</title>
+<title>Uji Konten Digital</title>
 <style>
   :root {
     --latar: #f4f5f7; --kartu: #ffffff; --teks: #1d2433; --redup: #5b6475; --garis: #d9dde5;
@@ -32,7 +32,7 @@
   summary { cursor: pointer; color: var(--utama); }
   details form { margin-top: 8px; }
   audio { width: 100%; margin-top: 12px; }
-  #status-login, #info-sesi { margin: 10px 0 0; color: var(--redup); }
+  #status-login, #info-sesi, #info-ebook { margin: 10px 0 0; color: var(--redup); }
   .uji { display: grid; gap: 8px; }
   .uji button { text-align: left; }
   pre { background: var(--kode); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: .8rem; margin: 8px 0 0; }
@@ -44,8 +44,8 @@
 </head>
 <body>
 <main>
-  <h1>Uji Pemutar Audiobook (AES-128 HLS)</h1>
-  <p class="catatan">Halaman pengujian Tahap C, hanya tersedia saat DEBUG. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
+  <h1>Uji Konten Digital: Audiobook AES-128 dan Ebook Ber-watermark</h1>
+  <p class="catatan">Halaman pengujian, hanya tersedia saat DEBUG. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
 
   <section>
     <h2>1. Akun</h2>
@@ -91,6 +91,15 @@
       <button type="button" class="kedua" data-uji="akun-lain">Minta kunci dengan token sesi milik akun lain → harus 403</button>
       <button type="button" class="kedua" data-uji="segmen">Unduh segmen langsung dari bucket → harus terenkripsi</button>
     </div>
+  </section>
+
+  <section>
+    <h2>4. Buka ebook ber-watermark</h2>
+    <div class="baris">
+      <label>ID produk ebook <input id="ebook-id" type="number" min="1" required></label>
+      <button type="button" id="tombol-ebook" disabled>Ambil salinan saya</button>
+    </div>
+    <p id="info-ebook">Setiap pembeli menerima salinan PDF sendiri yang bertanda nama, email tersamar, nomor pesanan, dan kode unik. Tautan berlaku 5 menit.</p>
   </section>
 
   <section>
@@ -194,6 +203,7 @@ function tampilkanAkun() {
   el("status-login").textContent = masuk ? `Login sebagai ${akun.email}.` : "Belum login.";
   el("tombol-logout").disabled = !masuk;
   el("tombol-putar").disabled = !masuk;
+  el("tombol-ebook").disabled = !masuk;
 }
 
 function hentikanPemutar() {
@@ -213,6 +223,7 @@ function keluarLokal() {
   akun.akses = akun.refresh = akun.email = null;
   el("info-sesi").textContent = "Belum ada sesi.";
   el("detail-playlist").hidden = true;
+  el("info-ebook").textContent = "Login untuk mengambil salinan ebook milik akun Anda.";
   tampilkanAkun();
 }
 
@@ -230,6 +241,7 @@ el("form-login").addEventListener("submit", async (event) => {
   if (sesi) sesiAkunLain = sesi;
   hentikanPemutar();
   sesi = null;
+  el("info-ebook").textContent = "Klik \"Ambil salinan saya\" untuk membuka salinan ebook milik akun ini.";
   akun.akses = r.data.access;
   akun.refresh = r.data.refresh;
   akun.email = r.data.pengguna.email;
@@ -423,8 +435,32 @@ document.querySelectorAll("[data-uji]").forEach((tombol) => {
   });
 });
 
-const produkAwal = new URLSearchParams(location.search).get("produk");
-if (produkAwal) el("produk-id").value = produkAwal;
+el("tombol-ebook").addEventListener("click", async () => {
+  const produkId = parseInt(el("ebook-id").value, 10);
+  if (!produkId) {
+    catat("Isi ID produk ebook terlebih dahulu.", "gagal");
+    return;
+  }
+  const r = await api(`/drm/ebook/${produkId}/`);
+  const info = el("info-ebook");
+  if (r.status !== 200) {
+    catat(`Salinan ebook belum bisa dibuka (HTTP ${r.status}): ${pesanError(r.data)}`, r.status === 409 ? "info" : "gagal");
+    return;
+  }
+  const batas = new Date(r.data.kedaluwarsa).toLocaleTimeString("id-ID");
+  info.textContent = "";
+  const tautan = document.createElement("a");
+  tautan.href = r.data.url;
+  tautan.target = "_blank";
+  tautan.rel = "noopener";
+  tautan.textContent = `Buka PDF ber-watermark (tautan berlaku sampai pukul ${batas})`;
+  info.append(tautan);
+  catat("Tautan presigned ke salinan ebook milik akun ini dibuat (berlaku 5 menit).", "ok");
+});
+
+const parameter = new URLSearchParams(location.search);
+if (parameter.get("produk")) el("produk-id").value = parameter.get("produk");
+if (parameter.get("ebook")) el("ebook-id").value = parameter.get("ebook");
 if (!window.Hls) catat("hls.js gagal dimuat dari CDN jsDelivr. Periksa koneksi internet.", "gagal");
 tampilkanAkun();
 </script>

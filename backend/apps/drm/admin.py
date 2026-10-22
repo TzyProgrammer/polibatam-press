@@ -1,8 +1,13 @@
 from django.contrib import admin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.template.response import TemplateResponse
+from django.urls import path
 
-from .layanan import antrikan_pengemasan
+from .forms import FormLacakKebocoran
+from .lacak import lacak_kebocoran
+from .layanan import antrikan_pengemasan, siapkan_salinan_ebook
 from .models import HakAkses, LogAksesKunci, PaketAudio, SalinanEbook, SesiStreaming
+from .watermark import GagalWatermark
 
 
 class HanyaBacaMixin:
@@ -72,11 +77,16 @@ class PaketAudioAdmin(HanyaBacaMixin, admin.ModelAdmin):
 
 @admin.register(SalinanEbook)
 class SalinanEbookAdmin(HanyaBacaMixin, admin.ModelAdmin):
+    """Hanya dilihat; aksi "Proses ulang" dan halaman "Lacak kebocoran" (FR-16)."""
+
     list_display = ("kode_watermark", "pembeli", "produk", "status", "siap_pada")
     list_filter = ("status",)
     search_fields = ("kode_watermark", "hak_akses__pembeli__email", "hak_akses__produk__buku__judul")
+    list_select_related = ("hak_akses__pembeli", "hak_akses__produk__buku")
     fields = ("kode_watermark", "hak_akses", "status", "berkas", "pesan_galat", "dibuat", "siap_pada")
     readonly_fields = fields
+    actions = ["proses_ulang"]
+    change_list_template = "admin/drm/salinanebook/change_list.html"
 
     @admin.display(description="Pembeli")
     def pembeli(self, obj):
@@ -85,6 +95,48 @@ class SalinanEbookAdmin(HanyaBacaMixin, admin.ModelAdmin):
     @admin.display(description="Produk")
     def produk(self, obj):
         return obj.hak_akses.produk
+
+    @admin.action(description="Proses ulang salinan ebook terpilih")
+    def proses_ulang(self, request, queryset):
+        jumlah = sum(
+            1 for salinan in queryset.select_related("hak_akses__produk")
+            if siapkan_salinan_ebook(salinan.hak_akses, paksa=True)
+        )
+        self.message_user(request, f"{jumlah} salinan ebook diantrekan untuk diproses ulang.")
+
+    def get_urls(self):
+        lacak = path(
+            "lacak-kebocoran/", self.admin_site.admin_view(self.lacak_view), name="drm_salinanebook_lacak"
+        )
+        return [lacak, *super().get_urls()]
+
+    def lacak_view(self, request):
+        """Unggah PDF yang diduga bocor → kode watermark → pembeli dan pesanan."""
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        hasil = nama_berkas = None
+        if request.method == "POST":
+            form = FormLacakKebocoran(request.POST, request.FILES)
+            if form.is_valid():
+                berkas = form.cleaned_data["berkas"]
+                nama_berkas = berkas.name
+                try:
+                    hasil = lacak_kebocoran(berkas.read())
+                except GagalWatermark as exc:
+                    form.add_error("berkas", str(exc))
+                except ImproperlyConfigured as exc:
+                    form.add_error(None, str(exc))
+        else:
+            form = FormLacakKebocoran()
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Lacak kebocoran ebook",
+            "form": form,
+            "hasil": hasil,
+            "nama_berkas": nama_berkas,
+        }
+        return TemplateResponse(request, "admin/drm/salinanebook/lacak.html", context)
 
 
 @admin.register(SesiStreaming)

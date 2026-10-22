@@ -5,4 +5,4 @@ class DrmConfig(AppConfig):
     name = "apps.drm"
 
     def ready(self):
-        from . import signals  # noqa: F401  (mendaftarkan sinyal pengemasan audiobook)
+        from . import checks, signals  # noqa: F401  (mendaftarkan pemeriksaan .env dan sinyal)

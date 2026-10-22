@@ -1,0 +1,99 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .lacak-ringkas { padding: 12px 16px; border-radius: 4px; margin: 16px 0; font-size: 14px; }
+  .lacak-asli { background: var(--message-success-bg); }
+  .lacak-tidak { background: var(--message-error-bg); }
+  .lacak-netral { background: var(--message-warning-bg); }
+  .lacak-tabel td, .lacak-tabel th { vertical-align: top; }
+  .lacak-kode { font-family: var(--font-family-monospace); white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Beranda</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; Lacak kebocoran
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>Unggah PDF yang diduga bocor. Sistem membaca kode watermark dari metadata dan dari teks halaman,
+     mencari salinan pembeli yang memiliki kode itu, lalu menghitung ulang HMAC untuk memastikan kode asli.</p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
+    <fieldset class="module aligned">
+      <div class="form-row">
+        {{ form.berkas.errors }}
+        <div class="flex-container">
+          <label class="required" for="{{ form.berkas.id_for_label }}">{{ form.berkas.label }}:</label>
+          {{ form.berkas }}
+        </div>
+        <div class="help">{{ form.berkas.help_text }}</div>
+      </div>
+    </fieldset>
+    <div class="submit-row"><input type="submit" class="default" value="Lacak"></div>
+  </form>
+
+  {% if hasil %}
+    <h2>Hasil untuk {{ nama_berkas }}</h2>
+    {% with asli=hasil.temuan_asli %}
+      {% if asli|length == 1 %}
+        {% with salinan=asli.0.salinan %}
+        <div class="lacak-ringkas lacak-asli">
+          Sumber kebocoran: <strong>{{ salinan.hak_akses.pembeli.nama_lengkap }}</strong>
+          ({{ salinan.hak_akses.pembeli.email }}), pesanan
+          <strong>{{ salinan.hak_akses.item_pesanan.pesanan.nomor }}</strong>.
+        </div>
+        {% endwith %}
+      {% elif asli %}
+        <div class="lacak-ringkas lacak-netral">Ditemukan {{ asli|length }} kode asli dari pembeli berbeda.</div>
+      {% elif hasil.temuan %}
+        <div class="lacak-ringkas lacak-tidak">Kode ditemukan, tetapi tidak ada yang asli.</div>
+      {% else %}
+        <div class="lacak-ringkas lacak-netral">Tidak ditemukan kode watermark Polibatam Press pada berkas ini.</div>
+      {% endif %}
+    {% endwith %}
+
+    {% if hasil.temuan %}
+    <table class="lacak-tabel">
+      <thead>
+        <tr><th>Kode</th><th>Ditemukan di</th><th>Status</th><th>Pembeli</th><th>Pesanan</th><th>Produk</th><th>Tanggal beli</th></tr>
+      </thead>
+      <tbody>
+      {% for t in hasil.temuan %}
+        <tr>
+          <td class="lacak-kode">{% if t.salinan %}<a href="{% url 'admin:drm_salinanebook_change' t.salinan.pk %}">{{ t.kode }}</a>{% else %}{{ t.kode }}{% endif %}</td>
+          <td>{{ t.sumber|join:", " }}</td>
+          <td>{% if t.asli %}<img src="{% static 'admin/img/icon-yes.svg' %}" alt="ya">{% else %}<img src="{% static 'admin/img/icon-no.svg' %}" alt="tidak">{% endif %} {{ t.keterangan }}</td>
+          {% if t.salinan %}
+            {% with hak=t.salinan.hak_akses %}
+            <td>{{ hak.pembeli.nama_lengkap }}<br>{{ hak.pembeli.email }}</td>
+            <td><a href="{% url 'admin:orders_pesanan_change' hak.item_pesanan.pesanan.pk %}">{{ hak.item_pesanan.pesanan.nomor }}</a></td>
+            <td>{{ hak.produk }}</td>
+            <td>{{ hak.item_pesanan.pesanan.dibayar_pada|default:hak.item_pesanan.pesanan.dibuat|date:"d-m-Y H:i" }}</td>
+            {% endwith %}
+          {% else %}
+            <td colspan="4">—</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if hasil.catatan %}
+      <h3>Catatan</h3>
+      <ul>{% for c in hasil.catatan %}<li>{{ c }}</li>{% endfor %}</ul>
+    {% endif %}
+    <p class="help">Metadata dibaca dari seluruh berkas; teks halaman diperiksa pada {{ hasil.halaman_diperiksa }} halaman pertama dari {{ hasil.jumlah_halaman }} halaman.</p>
+  {% endif %}
+</div>
+{% endblock %}

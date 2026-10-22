@@ -41,14 +41,15 @@ Bila `S3_HOST_PORT` diubah, sesuaikan juga `S3_PUBLIC_ENDPOINT_URL`.
 
 Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume).
 
-## Uji pemutar audiobook (hanya saat `DJANGO_DEBUG=True`)
+## Uji konten digital (hanya saat `DJANGO_DEBUG=True`)
 
-1. Tambahkan buku beserta produk Audiobook (MP3) di http://localhost:8080/admin/, tunggu status DRM "Siap diputar".
+1. Tambahkan buku beserta produk Audiobook (MP3) dan/atau Ebook (PDF) di http://localhost:8080/admin/. Untuk audiobook, tunggu status DRM "Siap diputar".
 2. Daftarkan akun pembeli di http://localhost:8080/uji-pemutar/ (bagian "Daftar").
-3. Beri akun itu hak akses tanpa checkout (tanpa `--produk` perintah ini menampilkan daftar audiobook):
+3. Beri akun itu hak akses tanpa checkout (tanpa `--produk` perintah ini menampilkan daftar produk digital):
 
    ```bash
    docker compose exec django python manage.py buat_akses_uji --email <email pembeli> --produk <ID produk>
    ```
 
-4. Buka halaman uji pemutar lewat `http://localhost:8080` (origin yang terdaftar di CORS bucket), login, lalu putar dan jalankan uji keamanan.
+4. Buka halaman uji lewat `http://localhost:8080` (origin yang terdaftar di CORS bucket), login, lalu putar audiobook, jalankan uji keamanan, atau ambil salinan ebook ber-watermark.
+5. Lacak kebocoran: unggah PDF salinan di Admin → Salinan ebook → "Lacak kebocoran".

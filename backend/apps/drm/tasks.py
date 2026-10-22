@@ -10,10 +10,10 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
-from . import hls
+from . import hls, watermark
 from .kunci import enkripsi_kunci, periksa_konfigurasi
-from .layanan import hapus_berkas, hapus_prefix
-from .models import PaketAudio
+from .layanan import hapus_berkas, hapus_prefix, identitas_pembelian
+from .models import PaketAudio, SalinanEbook, salinan_ebook_upload_to
 
 logger = logging.getLogger(__name__)
 
@@ -72,4 +72,55 @@ def kemas_audiobook(paket_id):
         paket.save()
     if prefix_lama and prefix_lama != prefix:
         hapus_prefix(prefix_lama)
+    return "siap"
+
+
+def _salinan_gagal(salinan_id, pesan):
+    SalinanEbook.objects.filter(pk=salinan_id).update(status=SalinanEbook.Status.GAGAL, pesan_galat=pesan[:1000])
+
+
+@shared_task(soft_time_limit=600, time_limit=660)
+def buat_salinan_ebook(salinan_id):
+    """Buat PDF ber-watermark milik satu pembeli dari PDF asli, lalu simpan di salinan/ebook/."""
+    try:
+        salinan = SalinanEbook.objects.select_related(
+            "hak_akses__pembeli", "hak_akses__produk", "hak_akses__item_pesanan__pesanan"
+        ).get(pk=salinan_id)
+    except SalinanEbook.DoesNotExist:
+        return "hilang"  # hak akses dihapus sebelum task berjalan
+    sumber = salinan.hak_akses.produk.berkas.name
+    if not sumber:
+        _salinan_gagal(salinan_id, "Produk ebook belum memiliki berkas PDF.")
+        return "gagal"
+    SalinanEbook.objects.filter(pk=salinan_id).update(status=SalinanEbook.Status.DIPROSES, pesan_galat="")
+
+    nama_baru = None
+    try:
+        identitas = identitas_pembelian(salinan)
+        with default_storage.open(sumber, "rb") as berkas:
+            asli = berkas.read()
+        hasil = watermark.beri_watermark(asli, identitas)
+        watermark.verifikasi_watermark(hasil, identitas)
+        nama_baru = default_storage.save(salinan_ebook_upload_to(salinan, "salinan.pdf"), ContentFile(hasil))
+    except Exception as exc:
+        if nama_baru:
+            hapus_berkas([nama_baru])
+        aman = isinstance(exc, (watermark.GagalWatermark, ImproperlyConfigured))
+        logger.exception("Pembuatan salinan ebook %s gagal", salinan_id)
+        _salinan_gagal(salinan_id, str(exc) if aman else "Kesalahan tak terduga; lihat log worker Celery.")
+        return "gagal"
+
+    with transaction.atomic():
+        salinan = SalinanEbook.objects.select_for_update().filter(pk=salinan_id).first()
+        if salinan is None:
+            hapus_berkas([nama_baru])
+            return "hilang"
+        nama_lama = salinan.berkas.name
+        salinan.berkas.name = nama_baru
+        salinan.status = SalinanEbook.Status.SIAP
+        salinan.pesan_galat = ""
+        salinan.siap_pada = timezone.now()
+        salinan.save(update_fields=["berkas", "status", "pesan_galat", "siap_pada"])
+    if nama_lama and nama_lama != nama_baru:
+        hapus_berkas([nama_lama])
     return "siap"

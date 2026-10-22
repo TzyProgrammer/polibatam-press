@@ -359,16 +359,14 @@ class BuatAksesUjiTests(TestCase):
         self.assertTrue(HakAkses.objects.get().aktif)
 
     @override_settings(DEBUG=True)
-    def test_daftar_audiobook_dan_validasi(self):
+    def test_daftar_produk_digital_dan_validasi(self):
         teks = self.jalankan()
-        self.assertIn(f"[{self.produk.pk}] Audiobook Uji — Siap diputar", teks)
-        ebook = Produk.objects.create(
-            buku=self.produk.buku, format=Produk.Format.EBOOK, harga=40000, berkas=berkas_uji("a.pdf")
-        )
+        self.assertIn(f"[{self.produk.pk}] Audiobook Uji (Audiobook (MP3)) — Siap diputar", teks)
+        cetak = Produk.objects.create(buku=self.produk.buku, format=Produk.Format.CETAK, harga=75000, stok=2)
         for argumen in (
             ("--produk", str(self.produk.pk)),
             ("--email", "tidakada@example.com", "--produk", str(self.produk.pk)),
-            ("--email", "pembeli@example.com", "--produk", str(ebook.pk)),
+            ("--email", "pembeli@example.com", "--produk", str(cetak.pk)),
             ("--email", "pembeli@example.com", "--produk", "999999"),
             ("--email", "pembeli@example.com", "--produk", str(self.produk.pk), "--cabut"),
         ):

@@ -122,6 +122,7 @@ REST_FRAMEWORK = {
         "refresh": "30/min",
         "sesi_streaming": "20/min",
         "kunci": "60/min",
+        "ebook": "30/min",
     },
     # Satu proxy (Nginx) di depan Django: IP klien diambil dari entri terakhir X-Forwarded-For.
     "NUM_PROXIES": 1,

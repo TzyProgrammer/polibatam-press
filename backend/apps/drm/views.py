@@ -1,8 +1,12 @@
+from datetime import timedelta
+
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny
@@ -13,7 +17,8 @@ from apps.catalog.models import Produk
 
 from .kode import hash_token
 from .kunci import dekripsi_kunci
-from .models import HakAkses, LogAksesKunci, PaketAudio, SesiStreaming
+from .layanan import siapkan_salinan_ebook
+from .models import HakAkses, LogAksesKunci, PaketAudio, SalinanEbook, SesiStreaming
 from .streaming import alamat_ip, buat_sesi, tulis_ulang_playlist
 
 TANPA_CACHE = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
@@ -151,6 +156,47 @@ class KunciView(SesiTokenMixin, APIView):
             alamat_ip=alamat_ip(request),
         )
         return HttpResponse(kunci, content_type="application/octet-stream", headers=TANPA_CACHE)
+
+
+class SalinanEbookView(APIView):
+    """GET /api/drm/ebook/<produk_id>/ — presigned URL 5 menit ke salinan ber-watermark milik pembeli.
+
+    Berkas asli tidak pernah diberikan; pembeli hanya menerima salinannya sendiri.
+    """
+
+    throttle_scope = "ebook"
+
+    def get(self, request, produk_id):
+        produk = Produk.objects.select_related("buku").filter(pk=produk_id, format=Produk.Format.EBOOK).first()
+        if produk is None:
+            return Response({"detail": "Ebook tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+        hak = HakAkses.objects.filter(pembeli=request.user, produk=produk, aktif=True).first()
+        if hak is None:
+            return Response({"detail": "Anda tidak memiliki hak akses ke ebook ini."}, status=status.HTTP_403_FORBIDDEN)
+        # Bila salinan belum pernah dibuat (misalnya worker sempat mati), siapkan sekarang.
+        salinan = SalinanEbook.objects.filter(hak_akses=hak).first() or siapkan_salinan_ebook(hak)
+        if salinan.status != SalinanEbook.Status.SIAP or not salinan.berkas:
+            pesan = (
+                "Salinan ebook gagal disiapkan. Hubungi admin."
+                if salinan.status == SalinanEbook.Status.GAGAL
+                else "Salinan ebook sedang disiapkan. Coba lagi beberapa saat."
+            )
+            return Response(
+                {"detail": pesan, "status": salinan.status}, status=status.HTTP_409_CONFLICT, headers=TANPA_CACHE
+            )
+        umur = settings.AWS_QUERYSTRING_EXPIRE
+        nama = f"{slugify(produk.buku.judul) or 'ebook'}.pdf"
+        url = default_storage.url(
+            salinan.berkas.name,
+            parameters={
+                "ResponseContentDisposition": f'inline; filename="{nama}"',
+                "ResponseCacheControl": "private, no-store",
+            },
+            expire=umur,
+        )
+        return Response(
+            {"url": url, "kedaluwarsa": timezone.now() + timedelta(seconds=umur)}, headers=TANPA_CACHE
+        )
 
 
 def uji_pemutar(request):
