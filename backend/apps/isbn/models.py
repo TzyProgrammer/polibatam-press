@@ -46,6 +46,17 @@ class PengajuanISBN(models.Model):
         verbose_name_plural = "pengajuan ISBN"
         ordering = ["-diajukan"]
 
+    def pilihan_status(self):
+        """Status yang boleh dipilih admin: menunggu verifikasi → diproses → selesai, atau ditolak.
+
+        Selesai dan ditolak adalah status akhir; naskah yang ditolak diajukan ulang sebagai pengajuan baru.
+        """
+        alur = {
+            self.Status.MENUNGGU_VERIFIKASI: [self.Status.DIPROSES, self.Status.DITOLAK],
+            self.Status.DIPROSES: [self.Status.SELESAI, self.Status.DITOLAK],
+        }
+        return [self.Status(self.status), *alur.get(self.status, [])]
+
     def clean(self):
         super().clean()
         errors = {}

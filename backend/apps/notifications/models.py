@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Notifikasi(models.Model):
-    """Notifikasi di dalam aplikasi; salinannya juga dikirim lewat email."""
+    """Notifikasi di dalam aplikasi (ikon lonceng). Kolom email_terkirim disiapkan untuk pengiriman email kelak."""
 
     class Kategori(models.TextChoices):
         PESANAN = "pesanan", "Pesanan"

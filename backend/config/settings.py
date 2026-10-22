@@ -126,6 +126,7 @@ REST_FRAMEWORK = {
         "checkout": "10/min",
         "cek_status": "20/min",
         "notifikasi_midtrans": "120/min",
+        "pengajuan_isbn": "20/hour",
     },
     # Satu proxy (Nginx) di depan Django: IP klien diambil dari entri terakhir X-Forwarded-For.
     "NUM_PROXIES": 1,

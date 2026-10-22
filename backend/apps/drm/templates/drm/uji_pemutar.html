@@ -40,7 +40,13 @@
   summary { cursor: pointer; color: var(--utama); }
   details form { margin-top: 8px; }
   audio { width: 100%; margin-top: 12px; }
-  #status-login, #info-sesi, #info-ebook, #info-keranjang, #info-checkout, #info-koleksi { margin: 10px 0 0; color: var(--redup); }
+  #status-login, #info-sesi, #info-ebook, #info-keranjang, #info-checkout, #info-koleksi, #info-notifikasi, #info-isbn { margin: 10px 0 0; color: var(--redup); }
+  textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--garis); border-radius: 6px; background: var(--latar); color: var(--teks); resize: vertical; }
+  label.lebar { flex-basis: 100%; }
+  .lencana { display: inline-block; min-width: 1.5em; padding: 0 6px; border-radius: 999px; background: var(--gagal); color: #fff; font-size: .78rem; text-align: center; vertical-align: middle; }
+  .lencana[hidden] { display: none; }
+  .daftar-katalog li.belum-dibaca { border-left: 4px solid var(--utama); }
+  .daftar-katalog code { font-size: .8rem; color: var(--redup); }
   .uji { display: grid; gap: 8px; }
   .uji button { text-align: left; }
   pre { background: var(--kode); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: .8rem; margin: 8px 0 0; }
@@ -53,7 +59,7 @@
 <body>
 <main>
   <h1>Halaman Uji Marketplace Polibatam Press</h1>
-  <p class="catatan">Halaman pengujian sebelum frontend Vue tersedia, hanya ada saat DEBUG: akun, audiobook AES-128, ebook ber-watermark, katalog, keranjang, checkout dengan Midtrans sandbox, pesanan, dan koleksi. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
+  <p class="catatan">Halaman pengujian sebelum frontend Vue tersedia, hanya ada saat DEBUG: akun, audiobook AES-128, ebook ber-watermark, katalog, keranjang, checkout dengan Midtrans sandbox, pesanan, koleksi, notifikasi, dan pengajuan ISBN. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
 
   <section>
     <h2>1. Akun</h2>
@@ -179,6 +185,37 @@
   </section>
 
   <section>
+    <h2>8. Notifikasi <span id="lencana-notifikasi" class="lencana" title="Belum dibaca" hidden>0</span></h2>
+    <p class="catatan">Notifikasi di dalam aplikasi (di frontend tampil sebagai ikon lonceng). Selama login, daftar dimuat ulang otomatis setiap 30 detik.</p>
+    <div class="baris">
+      <button type="button" id="tombol-notifikasi" class="kedua" disabled>Muat notifikasi</button>
+      <button type="button" id="tombol-baca-semua" class="kedua" disabled>Tandai semua dibaca</button>
+    </div>
+    <ul id="daftar-notifikasi" class="daftar-katalog"></ul>
+    <p id="info-notifikasi">Login untuk melihat notifikasi.</p>
+  </section>
+
+  <section>
+    <h2>9. Pengajuan ISBN</h2>
+    <p class="catatan">Naskah PDF atau DOCX, maksimal 20 MB; isi berkas diperiksa, bukan hanya ekstensinya. Status diubah admin di Admin → ISBN → Pengajuan ISBN, dan setiap perubahan dikirim sebagai notifikasi.</p>
+    <form id="form-isbn">
+      <label>Judul naskah <input id="isbn-judul" required></label>
+      <label>Penulis (pisahkan dengan ;) <input id="isbn-penulis" required></label>
+      <label>Jumlah halaman <input id="isbn-halaman" type="number" min="1"></label>
+      <label class="lebar">Sinopsis <textarea id="isbn-sinopsis" rows="3" required></textarea></label>
+      <label>Berkas naskah <input id="isbn-naskah" type="file" accept=".pdf,.docx" required></label>
+      <button type="submit" id="tombol-isbn" disabled>Ajukan</button>
+    </form>
+    <div class="tabel-gulir">
+      <table id="tabel-isbn" hidden>
+        <thead><tr><th>Judul</th><th>Diajukan</th><th>Status</th><th>Keterangan</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="info-isbn">Login untuk mengajukan ISBN.</p>
+  </section>
+
+  <section>
     <h2>Log</h2>
     <ol id="log"></ol>
   </section>
@@ -200,6 +237,7 @@ let sudahDiputar = false;
 let keranjangTerakhir = null; // isi keranjang terakhir dari API, untuk formulir checkout
 let opsiCheckout = null;      // ongkir, kecamatan, lokasi takeaway, batas bayar
 let snapDimuat = null;        // Promise pemuatan snap.js Midtrans
+let pewaktuNotifikasi = null; // pemuatan ulang notifikasi tiap 30 detik selama login
 
 function catat(pesan, jenis = "info") {
   const li = document.createElement("li");
@@ -286,6 +324,8 @@ function tampilkanAkun() {
   el("tombol-keranjang").disabled = !masuk;
   el("tombol-pesanan").disabled = !masuk;
   el("tombol-koleksi").disabled = !masuk;
+  el("tombol-notifikasi").disabled = !masuk;
+  el("tombol-isbn").disabled = !masuk;
   perbaruiFormCheckout();
 }
 
@@ -314,6 +354,15 @@ function keluarLokal() {
   el("detail-pesanan").hidden = true;
   el("daftar-koleksi").replaceChildren();
   el("info-koleksi").textContent = "Login untuk melihat koleksi.";
+  clearInterval(pewaktuNotifikasi);
+  pewaktuNotifikasi = null;
+  el("daftar-notifikasi").replaceChildren();
+  el("lencana-notifikasi").hidden = true;
+  el("tombol-baca-semua").disabled = true;
+  el("info-notifikasi").textContent = "Login untuk melihat notifikasi.";
+  el("tabel-isbn").querySelector("tbody").replaceChildren();
+  el("tabel-isbn").hidden = true;
+  el("info-isbn").textContent = "Login untuk mengajukan ISBN.";
   tampilkanAkun();
 }
 
@@ -344,6 +393,10 @@ el("form-login").addEventListener("submit", async (event) => {
   await muatOpsiCheckout(); // sekaligus memuat keranjang
   await muatPesanan();
   await muatKoleksi();
+  await muatNotifikasi();
+  await muatPengajuan();
+  clearInterval(pewaktuNotifikasi);
+  pewaktuNotifikasi = setInterval(() => muatNotifikasi(true), 30000);
 });
 
 el("form-daftar").addEventListener("submit", async (event) => {
@@ -819,6 +872,7 @@ async function cekStatus(nomor) {
   catat(`Status ${nomor} menurut Midtrans: ${d.status_pembayaran_label}${metode}.`, d.status_pembayaran === "lunas" ? "ok" : "info");
   await muatPesanan();
   if (d.status_pembayaran === "lunas") await muatKoleksi();
+  await muatNotifikasi();
 }
 
 async function lihatDetail(nomor) {
@@ -901,6 +955,132 @@ async function muatKoleksi() {
 
 el("tombol-pesanan").addEventListener("click", muatPesanan);
 el("tombol-koleksi").addEventListener("click", muatKoleksi);
+
+async function muatNotifikasi(diam = false) {
+  if (!akun.akses) return;
+  const r = await api("/notifikasi/");
+  if (r.status !== 200) {
+    if (!diam) catat(`Notifikasi gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    return;
+  }
+  const lencana = el("lencana-notifikasi");
+  lencana.textContent = r.data.belum_dibaca;
+  lencana.hidden = !r.data.belum_dibaca;
+  el("tombol-baca-semua").disabled = !r.data.belum_dibaca;
+  const daftar = el("daftar-notifikasi");
+  daftar.replaceChildren();
+  for (const n of r.data.results) {
+    const li = document.createElement("li");
+    if (!n.dibaca) li.className = "belum-dibaca";
+    const judul = document.createElement("strong");
+    judul.textContent = n.judul;
+    const info = document.createElement("span");
+    info.textContent = ` · ${n.kategori_label} · ${new Date(n.dibuat).toLocaleString("id-ID")}`;
+    const pesan = document.createElement("div");
+    pesan.textContent = n.pesan;
+    const baris = document.createElement("div");
+    baris.className = "baris";
+    if (n.tautan) {
+      const tautan = document.createElement("code");
+      tautan.textContent = `halaman frontend: ${n.tautan}`;
+      baris.append(tautan);
+    }
+    if (!n.dibaca) baris.append(tombolKecil("Tandai dibaca", () => bacaNotifikasi(n.id)));
+    li.append(judul, info, pesan, baris);
+    daftar.append(li);
+  }
+  el("info-notifikasi").textContent = r.data.count
+    ? `${r.data.count} notifikasi, ${r.data.belum_dibaca} belum dibaca.`
+    : "Belum ada notifikasi.";
+}
+
+async function bacaNotifikasi(id) {
+  const r = await api(`/notifikasi/${id}/baca/`, { method: "POST" });
+  if (r.status !== 200) return catat(`Notifikasi gagal ditandai (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  await muatNotifikasi();
+}
+
+el("tombol-notifikasi").addEventListener("click", () => muatNotifikasi());
+el("tombol-baca-semua").addEventListener("click", async () => {
+  const r = await api("/notifikasi/baca-semua/", { method: "POST" });
+  if (r.status !== 200) return catat(`Gagal menandai notifikasi (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  catat(`${r.data.ditandai} notifikasi ditandai sudah dibaca.`);
+  await muatNotifikasi();
+});
+
+async function kirimFormulir(path, formulir) {
+  // Unggah berkas memakai multipart/form-data; Content-Type (beserta boundary) diisi peramban.
+  await pastikanAksesSegar();
+  const respons = await fetch(API + path, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${akun.akses}` },
+    body: formulir,
+  });
+  const tipe = respons.headers.get("Content-Type") || "";
+  return { status: respons.status, data: tipe.includes("json") ? await respons.json() : null };
+}
+
+function keteranganPengajuan(p) {
+  if (p.status === "selesai") return `ISBN ${p.nomor_isbn}${p.tanggal_penetapan ? ` (ditetapkan ${p.tanggal_penetapan})` : ""}`;
+  if (p.status === "ditolak") return `Alasan: ${p.alasan_penolakan}`;
+  return "–";
+}
+
+async function unduhNaskah(id) {
+  const r = await api(`/isbn/pengajuan/${id}/`);
+  if (r.status !== 200) return catat(`Detail pengajuan gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  const info = el("info-isbn");
+  info.textContent = "";
+  const tautan = document.createElement("a");
+  tautan.href = r.data.naskah.url;
+  tautan.rel = "noopener";
+  tautan.textContent = `Unduh ${r.data.naskah.nama} (tautan berlaku 5 menit)`;
+  info.append(tautan);
+}
+
+async function muatPengajuan() {
+  const r = await api("/isbn/pengajuan/");
+  if (r.status !== 200) return catat(`Pengajuan ISBN gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  const tbody = el("tabel-isbn").querySelector("tbody");
+  tbody.replaceChildren();
+  for (const p of r.data.results) {
+    const tr = document.createElement("tr");
+    const sel = (teks) => {
+      const td = document.createElement("td");
+      td.textContent = teks;
+      tr.append(td);
+      return td;
+    };
+    sel(p.judul);
+    sel(new Date(p.diajukan).toLocaleDateString("id-ID"));
+    sel(p.status_label);
+    sel(keteranganPengajuan(p));
+    sel("").append(tombolKecil("Unduh naskah", () => unduhNaskah(p.id)));
+    tbody.append(tr);
+  }
+  el("tabel-isbn").hidden = !r.data.results.length;
+  el("info-isbn").textContent = r.data.count ? `${r.data.count} pengajuan.` : "Belum ada pengajuan ISBN.";
+}
+
+el("form-isbn").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const naskah = el("isbn-naskah").files[0];
+  if (!naskah) return catat("Pilih berkas naskah (.pdf atau .docx) terlebih dahulu.", "gagal");
+  const formulir = new FormData();
+  formulir.append("judul", el("isbn-judul").value.trim());
+  formulir.append("penulis", el("isbn-penulis").value.trim());
+  formulir.append("sinopsis", el("isbn-sinopsis").value.trim());
+  if (el("isbn-halaman").value) formulir.append("jumlah_halaman", el("isbn-halaman").value);
+  formulir.append("berkas_naskah", naskah);
+  el("tombol-isbn").disabled = true;
+  const r = await kirimFormulir("/isbn/pengajuan/", formulir);
+  el("tombol-isbn").disabled = !akun.akses;
+  if (r.status !== 201) return catat(`Pengajuan ISBN gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  catat(`Pengajuan ISBN "${r.data.judul}" diterima (${r.data.status_label}).`, "ok");
+  el("form-isbn").reset();
+  await muatPengajuan();
+  await muatNotifikasi();
+});
 
 const parameter = new URLSearchParams(location.search);
 if (parameter.get("produk")) el("produk-id").value = parameter.get("produk");

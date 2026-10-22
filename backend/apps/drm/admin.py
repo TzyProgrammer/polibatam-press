@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.template.response import TemplateResponse
 
+from apps.notifications import layanan as notifikasi
+
 from .forms import FormLacakKebocoran
 from .lacak import lacak_kebocoran
 from .layanan import antrikan_pengemasan, siapkan_salinan_ebook
@@ -47,6 +49,11 @@ class HakAksesAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if "aktif" in form.changed_data:
+            notifikasi.hak_akses_berubah(obj)  # pembeli diberi tahu saat akses dicabut atau dipulihkan
 
 
 @admin.register(PaketAudio)

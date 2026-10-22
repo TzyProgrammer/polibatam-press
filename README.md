@@ -71,3 +71,11 @@ Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume)
 5. Bagian 7: "Cek status" membaca status dari Midtrans; setelah lunas, ebook dan audiobook muncul di koleksi. Pesanan yang tidak dibayar sampai batas waktu (bawaan 60 menit) ditutup otomatis oleh `celery-beat` dan stok buku cetaknya kembali.
 6. Admin → Orders → Pesanan: ubah status pengiriman (delivery: diproses → dikirim → selesai; takeaway: diproses → siap diambil → selesai). Semua notifikasi Midtrans tercatat di Log notifikasi Midtrans.
 7. Opsional, notifikasi otomatis (webhook): buat tunnel publik ke `http://localhost:8080` (misalnya cloudflared atau ngrok), tambahkan domain tunnel ke `DJANGO_ALLOWED_HOSTS`, lalu isi Payment Notification URL di dashboard sandbox dengan `https://<domain-tunnel>/api/pembayaran/midtrans/notifikasi/`. Tanpa tunnel, status tetap diperbarui lewat "Cek status" dan pemeriksaan berkala.
+
+## Uji notifikasi dan pengajuan ISBN
+
+1. Login di halaman uji. Bagian 8 menampilkan notifikasi beserta angka belum dibaca dan dimuat ulang tiap 30 detik.
+2. Notifikasi muncul saat pembayaran lunas atau pesanan ditutup, saat admin mengubah status pengiriman, saat admin menonaktifkan atau mengaktifkan hak akses, dan saat status pengajuan ISBN berubah.
+3. Bagian 9: ajukan naskah PDF atau DOCX (maksimal 20 MB). Berkas lain yang hanya diganti namanya menjadi .pdf/.docx ditolak.
+4. Admin → ISBN → Pengajuan ISBN: ubah status menunggu verifikasi → diproses → selesai (wajib ISBN-13 valid, misalnya 978-602-8519-93-9) atau ditolak (wajib alasan). Pemohon menerima notifikasi untuk setiap perubahan status.
+

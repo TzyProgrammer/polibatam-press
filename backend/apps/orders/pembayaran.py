@@ -5,9 +5,10 @@ Satu-satunya tempat status_pembayaran berubah. Sumbernya selalu Get Status API M
 notifikasi yang terlambat, terkirim dua kali, atau tidak berurutan tidak membuat status mundur.
 
 Transisi:
-- menunggu → lunas: hak akses produk digital dibuat (salinan ebook ber-watermark ikut disiapkan) dan
-  pengiriman buku cetak berstatus diproses.
-- menunggu → kedaluwarsa/dibatalkan/gagal: stok buku cetak yang dipesan saat checkout dikembalikan.
+- menunggu → lunas: hak akses produk digital dibuat (salinan ebook ber-watermark ikut disiapkan),
+  pengiriman buku cetak berstatus diproses, dan pembeli menerima notifikasi.
+- menunggu → kedaluwarsa/dibatalkan/gagal: stok buku cetak yang dipesan saat checkout dikembalikan dan
+  pembeli menerima notifikasi.
 - kedaluwarsa/dibatalkan/gagal → lunas (bila Midtrans menyatakan dibayar): stok dipesan ulang, hak
   akses dibuat. Uang pembeli sudah diterima, jadi pesanan tetap lunas.
 - lunas tidak pernah berubah lagi. Pengembalian dana ditangani manual (dashboard Midtrans + admin).
@@ -24,6 +25,7 @@ from django.utils import timezone
 
 from apps.catalog.models import Produk
 from apps.drm.layanan import berikan_hak_akses
+from apps.notifications import layanan as notifikasi
 
 from . import midtrans
 from .models import Pesanan
@@ -152,6 +154,7 @@ def _lunas(pesanan, data):
     pesanan.save(update_fields=["status_pembayaran", "dibayar_pada", "status_pengiriman", "diperbarui"])
     for item in pesanan.item.select_related("produk", "pesanan__pembeli"):
         berikan_hak_akses(item)  # hanya produk digital; ebook sekaligus menyiapkan salinan ber-watermark
+    notifikasi.pembayaran_lunas(pesanan)
     logger.info("Pesanan %s lunas (%s).", pesanan.nomor, pesanan.midtrans_payment_type or "-")
 
 
@@ -166,6 +169,7 @@ def _tutup_tanpa_bayar(pesanan, status):
     if pesanan.perlu_pengiriman:
         pesanan.status_pengiriman = Pesanan.StatusPengiriman.TIDAK_ADA
     pesanan.save(update_fields=["status_pembayaran", "status_pengiriman", "diperbarui"])
+    notifikasi.pesanan_ditutup(pesanan)
     logger.info("Pesanan %s %s; stok buku cetak dikembalikan.", pesanan.nomor, pesanan.get_status_pembayaran_display())
 
 

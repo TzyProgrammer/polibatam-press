@@ -17,6 +17,7 @@ from apps.accounts.models import User
 from apps.catalog.models import Produk
 from apps.drm.models import HakAkses, SalinanEbook
 from apps.drm.tasks import buat_salinan_ebook
+from apps.notifications.models import Notifikasi
 from core.testing import STORAGES_MEMORI
 
 from . import midtrans
@@ -32,6 +33,12 @@ DELIVERY = {
     "kecamatan": "Batam Kota",
 }
 Status = Pesanan.StatusPembayaran
+
+
+def notifikasi_pembeli(pembeli):
+    """(judul, pesan, tautan) notifikasi di aplikasi milik pembeli, terlama lebih dulu."""
+    notifikasi = Notifikasi.objects.filter(penerima=pembeli).order_by("dibuat", "id")
+    return list(notifikasi.values_list("judul", "pesan", "tautan"))
 
 
 def notifikasi(pesanan, transaction_status="settlement", kunci=KUNCI, **lain):
@@ -102,6 +109,15 @@ class NotifikasiLunasTests(PembayaranTestCase):
         log = LogNotifikasiMidtrans.objects.get()
         self.assertEqual((log.pesanan, log.signature_valid, log.transaction_status), (pesanan, True, "settlement"))
         self.assertEqual(self.midtrans.panggilan_status, [pesanan.nomor])  # status dikonfirmasi ke Status API
+        self.assertEqual(
+            notifikasi_pembeli(self.pembeli),
+            [(
+                "Pembayaran diterima",
+                f"Pesanan {pesanan.nomor} sudah lunas. Ebook dan audiobook bisa dibuka di Koleksi. "
+                "Buku cetak sedang diproses untuk dikirim.",
+                f"/pesanan/{pesanan.nomor}",
+            )],
+        )
 
     def test_notifikasi_berulang_tidak_menggandakan(self):
         pesanan = self.buat_pesanan(self.ebook)
@@ -113,6 +129,7 @@ class NotifikasiLunasTests(PembayaranTestCase):
         self.assertEqual(SalinanEbook.objects.count(), 1)
         self.assertEqual(LogNotifikasiMidtrans.objects.count(), 2)
         self.assertEqual(self.muat(pesanan).status_pembayaran, Status.LUNAS)
+        self.assertEqual(len(notifikasi_pembeli(self.pembeli)), 1)  # notifikasi lunas hanya sekali
 
     def test_pesanan_digital_tidak_punya_status_pengiriman(self):
         pesanan = self.buat_pesanan(self.audio)
@@ -207,6 +224,14 @@ class PembayaranGagalTests(PembayaranTestCase):
         self.assertEqual(pesanan.status_pengiriman, Pesanan.StatusPengiriman.TIDAK_ADA)
         self.assertEqual(self.stok_cetak(), 3)
         self.assertFalse(HakAkses.objects.exists())
+        self.assertEqual(
+            notifikasi_pembeli(self.pembeli),
+            [(
+                "Pesanan kedaluwarsa",
+                f"Pesanan {pesanan.nomor} tidak dibayar sampai batas waktu. Silakan pesan ulang bila masih berminat.",
+                f"/pesanan/{pesanan.nomor}",
+            )],
+        )
 
     def test_dibatalkan_dan_ditolak(self):
         kasus = (("cancel", Status.DIBATALKAN), ("deny", Status.GAGAL), ("failure", Status.GAGAL))
@@ -218,6 +243,8 @@ class PembayaranGagalTests(PembayaranTestCase):
                 self.kirim_notifikasi(notifikasi(pesanan, status_midtrans))
                 self.assertEqual(self.muat(pesanan).status_pembayaran, harapan)
                 self.assertEqual(self.stok_cetak(), 3)
+        judul = [n[0] for n in notifikasi_pembeli(self.pembeli)]
+        self.assertEqual(judul, ["Pesanan dibatalkan", "Pembayaran gagal", "Pembayaran gagal"])
 
     def test_notifikasi_tidak_berurutan_tidak_membuat_status_mundur(self):
         pesanan = self.buat_pesanan(self.cetak, self.ebook, **DELIVERY)
@@ -375,6 +402,16 @@ class AdminPesananTests(PembayaranTestCase):
         self.assertEqual(self.muat(delivery).status_pengiriman, "diproses")
         self.assertEqual(self.simpan_di_admin(delivery, status_pengiriman="dikirim").status_code, 302)
         self.assertEqual(self.muat(delivery).status_pengiriman, "dikirim")
+        self.simpan_di_admin(delivery, status_pengiriman="dikirim")  # disimpan tanpa perubahan
+        self.simpan_di_admin(takeaway, status_pengiriman="siap_diambil")
+
+        judul = [n[0] for n in notifikasi_pembeli(self.pembeli)]
+        self.assertEqual(
+            judul, ["Pembayaran diterima", "Pembayaran diterima", "Pesanan dikirim", "Pesanan siap diambil"]
+        )
+        siap_diambil = notifikasi_pembeli(self.pembeli)[-1]
+        self.assertIn(PENGATURAN_UJI["LOKASI_TAKEAWAY"], siap_diambil[1])
+        self.assertEqual(siap_diambil[2], f"/pesanan/{takeaway.nomor}")
 
     def test_status_pembayaran_tidak_bisa_diubah_admin(self):
         pesanan = self.buat_pesanan(self.cetak, **DELIVERY)  # belum lunas

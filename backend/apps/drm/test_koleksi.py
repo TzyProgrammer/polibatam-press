@@ -1,4 +1,4 @@
-"""Tes Tahap F: API koleksi digital pembeli (FR-13)."""
+"""Tes Tahap F dan G: API koleksi digital pembeli (FR-13) dan notifikasi saat admin mengubah hak akses."""
 
 from unittest import mock
 
@@ -7,6 +7,8 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
+from apps.accounts.models import User
+from apps.notifications.models import Notifikasi
 from apps.orders.models import ItemPesanan, Pesanan
 from apps.orders.testing import buat_pembeli, buat_produk_uji
 from core.testing import STORAGES_MEMORI
@@ -17,7 +19,7 @@ from .tasks import buat_salinan_ebook
 
 
 @override_settings(STORAGES=STORAGES_MEMORI)
-class KoleksiTests(APITestCase):
+class KoleksiTestCase(APITestCase):
     def setUp(self):
         self.pembeli = buat_pembeli()
         self.cetak, self.ebook, self.audio = buat_produk_uji()
@@ -31,6 +33,8 @@ class KoleksiTests(APITestCase):
                 berikan_hak_akses(item)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(self.pembeli)}")
 
+
+class KoleksiTests(KoleksiTestCase):
     def koleksi(self):
         response = self.client.get(reverse("koleksi"))
         self.assertEqual(response.status_code, 200)
@@ -73,3 +77,31 @@ class KoleksiTests(APITestCase):
     def test_tanpa_kueri_berulang(self):
         with self.assertNumQueries(2):  # pengguna (JWT) + hak akses beserta produk, paket, salinan, pesanan
             self.client.get(reverse("koleksi"))
+
+
+class AdminHakAksesTests(KoleksiTestCase):
+    def ubah_aktif(self, hak, aktif):
+        data = {"aktif": "on"} if aktif else {}
+        response = self.client.post(reverse("admin:drm_hakakses_change", args=[hak.pk]), data)
+        self.assertEqual(response.status_code, 302)
+
+    def test_pembeli_diberi_tahu_saat_akses_dicabut_dan_dipulihkan(self):
+        admin = User.objects.create_superuser(email="admin@example.com", password="x", nama_lengkap="Admin")
+        self.client.force_login(admin)
+        hak = HakAkses.objects.get(produk=self.ebook)
+        self.ubah_aktif(hak, False)
+        self.ubah_aktif(hak, False)  # disimpan tanpa perubahan: tidak ada notifikasi baru
+        self.ubah_aktif(hak, True)
+        self.assertEqual(
+            list(
+                Notifikasi.objects.filter(penerima=self.pembeli)
+                .order_by("id")
+                .values_list("kategori", "judul", "tautan")
+            ),
+            [
+                ("konten", "Akses konten dinonaktifkan", "/koleksi"),
+                ("konten", "Akses konten aktif kembali", "/koleksi"),
+            ],
+        )
+        self.assertIn("Keamanan Data Modern (Ebook (PDF))", Notifikasi.objects.order_by("id").first().pesan)
+

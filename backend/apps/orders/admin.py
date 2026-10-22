@@ -2,6 +2,8 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 
+from apps.notifications import layanan as notifikasi
+
 from . import midtrans
 from .models import ItemPesanan, LogNotifikasiMidtrans, Pesanan
 from .pembayaran import sinkronkan
@@ -72,6 +74,11 @@ class PesananAdmin(admin.ModelAdmin):
             # Belum lunas atau tanpa buku cetak: belum ada yang perlu dikirim.
             kolom.append("status_pengiriman")
         return kolom
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if "status_pengiriman" in form.changed_data:
+            notifikasi.pengiriman_berubah(obj)
 
     @admin.display(description="Lokasi pengambilan")
     def lokasi_pengambilan(self, obj):
