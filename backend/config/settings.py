@@ -129,6 +129,8 @@ AWS_S3_REGION_NAME = "us-east-1"
 AWS_S3_ADDRESSING_STYLE = "path"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 S3_PUBLIC_ENDPOINT_URL = os.environ.get("S3_PUBLIC_ENDPOINT_URL", AWS_S3_ENDPOINT_URL)
+# Umur bawaan presigned URL (detik). Pemanggil boleh memberi expire sendiri bila perlu.
+AWS_QUERYSTRING_EXPIRE = 300
 
 S3_BOTO_CONFIG = Config(
     signature_version=AWS_S3_SIGNATURE_VERSION,
@@ -139,6 +141,15 @@ S3_BOTO_CONFIG = Config(
 )
 
 STORAGES = {
-    "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+    # Bucket privat; URL berkas = presigned URL lewat S3_PUBLIC_ENDPOINT_URL (lihat core/storage.py)
+    "default": {"BACKEND": "core.storage.PrivateS3Storage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
+
+# Keamanan konten (DRM)
+# Kunci induk Fernet untuk mengenkripsi kunci AES-128 tiap audiobook sebelum disimpan di basis data
+FERNET_MASTER_KEY = os.environ.get("FERNET_MASTER_KEY", "")
+# Rahasia HMAC untuk kode unik watermark ebook; terpisah dari SECRET_KEY dan FERNET_MASTER_KEY
+WATERMARK_SECRET = os.environ.get("WATERMARK_SECRET", "")
+# Umur sesi streaming audiobook (menit)
+STREAMING_SESSION_MINUTES = int(os.environ.get("STREAMING_SESSION_MINUTES", "10"))

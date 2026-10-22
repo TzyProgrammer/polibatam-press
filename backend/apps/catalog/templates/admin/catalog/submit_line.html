@@ -1,0 +1,17 @@
+{% load i18n admin_urls %}
+{% comment %}
+Tombol formulir Kategori dan Buku: satu tombol simpan saja.
+"Tambah" saat menambah data, "Simpan Perubahan" saat mengubah.
+Tombol "Simpan dan tambahkan lagi" dan "Simpan dan terus mengedit" sengaja dihilangkan.
+{% endcomment %}
+<div class="submit-row">
+{% if show_save %}<input type="submit" value="{% if add %}Tambah{% else %}Simpan Perubahan{% endif %}" class="default" name="_save">{% endif %}
+{% if show_close %}
+    {% url opts|admin_urlname:'changelist' as changelist_url %}
+    <a href="{% add_preserved_filters changelist_url %}" class="closelink">{% translate 'Close' %}</a>
+{% endif %}
+{% if show_delete_link and original %}
+    {% url opts|admin_urlname:'delete' original.pk|admin_urlquote as delete_url %}
+    <a href="{% add_preserved_filters delete_url %}" class="deletelink">{% translate "Delete" %}</a>
+{% endif %}
+</div>

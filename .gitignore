@@ -225,3 +225,8 @@ node_modules/
 media/
 *.key
 *.pem
+
+# Berkas kerja lokal (tidak di-commit)
+.claude/
+CLAUDE.md
+docs/SPEC.md
