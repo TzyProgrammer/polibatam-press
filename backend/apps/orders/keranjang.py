@@ -6,7 +6,7 @@ from apps.catalog.ketersediaan import ketersediaan
 from apps.catalog.models import Produk
 from apps.drm.models import HakAkses
 
-from .models import ItemKeranjang, Keranjang
+from .models import ItemKeranjang, ItemPesanan, Keranjang, Pesanan
 
 BATAS_JUMLAH = 99
 
@@ -31,6 +31,23 @@ def sudah_dimiliki(pembeli, produk):
     return produk.is_digital and HakAkses.objects.filter(pembeli=pembeli, produk=produk).exists()
 
 
+def dalam_pesanan_menunggu(pembeli, produk_ids):
+    """{produk_id: nomor pesanan} untuk produk yang ada di pesanan pembeli yang belum dibayar.
+
+    Dipakai untuk produk digital: produk yang sama tidak boleh dibeli lagi selagi pesanan
+    sebelumnya masih menunggu pembayaran.
+    """
+    if not produk_ids:
+        return {}
+    return dict(
+        ItemPesanan.objects.filter(
+            pesanan__pembeli=pembeli,
+            pesanan__status_pembayaran=Pesanan.StatusPembayaran.MENUNGGU,
+            produk_id__in=produk_ids,
+        ).values_list("produk_id", "pesanan__nomor")
+    )
+
+
 def _periksa_jumlah(produk, jumlah):
     if produk.is_digital:
         if jumlah != 1:
@@ -51,6 +68,10 @@ def tambah_item(pembeli, produk_id, jumlah=1):
         raise GagalKeranjang(f"Produk tidak tersedia: {keterangan.lower()}.")
     if sudah_dimiliki(pembeli, produk):
         raise GagalKeranjang("Anda sudah memiliki produk ini. Buka di Koleksi.")
+    if produk.is_digital:
+        nomor = dalam_pesanan_menunggu(pembeli, [produk.id]).get(produk.id)
+        if nomor:
+            raise GagalKeranjang(f"Produk ini sedang menunggu pembayaran di pesanan {nomor}.")
     keranjang = keranjang_milik(pembeli, kunci=True)
     item = keranjang.item.filter(produk=produk).first()
     if item is not None:
@@ -97,17 +118,19 @@ def ringkasan(keranjang):
     item_list = list(
         keranjang.item.select_related("produk__buku__kategori", "produk__paket_audio").order_by("ditambahkan", "pk")
     )
+    digital = [i.produk_id for i in item_list if i.produk.is_digital]
     dimiliki = set(
-        HakAkses.objects.filter(
-            pembeli=keranjang.pembeli, produk_id__in=[i.produk_id for i in item_list if i.produk.is_digital]
-        ).values_list("produk_id", flat=True)
+        HakAkses.objects.filter(pembeli=keranjang.pembeli, produk_id__in=digital).values_list("produk_id", flat=True)
     )
+    menunggu = dalam_pesanan_menunggu(keranjang.pembeli, digital)
     baris = []
     for item in item_list:
         produk = item.produk
         tersedia, keterangan = ketersediaan(produk)
         if tersedia and produk.id in dimiliki:
             tersedia, keterangan = False, "Sudah dimiliki"
+        elif tersedia and produk.id in menunggu:
+            tersedia, keterangan = False, f"Menunggu pembayaran ({menunggu[produk.id]})"
         elif tersedia and not produk.is_digital and item.jumlah > produk.stok:
             tersedia, keterangan = False, f"Stok tersisa {produk.stok}"
         baris.append({"item": item, "tersedia": tersedia, "keterangan": keterangan})

@@ -53,4 +53,21 @@ Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume)
 
 4. Buka halaman uji lewat `http://localhost:8080` (origin yang terdaftar di CORS bucket), login, lalu putar audiobook, jalankan uji keamanan, atau ambil salinan ebook ber-watermark.
 5. Lacak kebocoran: unggah PDF salinan di Admin → menu DRM → "Lacak kebocoran".
-6. Katalog dan keranjang: bagian 5 halaman uji. Katalog juga bisa dibuka langsung di http://localhost:8080/api/katalog/buku/ (contoh: `?q=data&format=ebook&urutan=harga`).
+6. Katalog dan keranjang: bagian 5 halaman uji. Katalog juga bisa dibuka langsung di http://localhost:8080/api/katalog/buku/ (contoh: `?q=data&tipe=ebook&urutan=harga`).
+
+## Uji checkout dan pembayaran (Midtrans sandbox)
+
+1. Buat akun sandbox di https://dashboard.sandbox.midtrans.com, lalu salin Server Key dan Client Key (Settings → Access Keys) ke `MIDTRANS_SERVER_KEY` dan `MIDTRANS_CLIENT_KEY` di `.env`. Jangan pernah membagikan atau meng-commit server key.
+2. Terapkan perubahan (paket `requests` dan layanan `celery-beat` baru):
+
+   ```bash
+   docker compose up -d --build
+   docker compose exec django python manage.py migrate
+   docker compose exec django python manage.py check     # tidak ada peringatan orders.W001/W002
+   ```
+
+3. Di halaman uji (bagian 5–6): masukkan produk ke keranjang, isi pengiriman bila ada buku cetak (delivery: alamat + kecamatan di Kota Batam; takeaway: diambil di Gedung TA Kampus Polibatam, Lantai 1, Kantor Polibatam Store), lalu "Checkout dan bayar".
+4. Di popup Snap pilih QRIS, salin URL gambar QR, lalu bayar di QRIS Simulator https://simulator.sandbox.midtrans.com/v2/qris/index. Jangan membayar dengan aplikasi bank atau e-wallet sungguhan.
+5. Bagian 7: "Cek status" membaca status dari Midtrans; setelah lunas, ebook dan audiobook muncul di koleksi. Pesanan yang tidak dibayar sampai batas waktu (bawaan 60 menit) ditutup otomatis oleh `celery-beat` dan stok buku cetaknya kembali.
+6. Admin → Orders → Pesanan: ubah status pengiriman (delivery: diproses → dikirim → selesai; takeaway: diproses → siap diambil → selesai). Semua notifikasi Midtrans tercatat di Log notifikasi Midtrans.
+7. Opsional, notifikasi otomatis (webhook): buat tunnel publik ke `http://localhost:8080` (misalnya cloudflared atau ngrok), tambahkan domain tunnel ke `DJANGO_ALLOWED_HOSTS`, lalu isi Payment Notification URL di dashboard sandbox dengan `https://<domain-tunnel>/api/pembayaran/midtrans/notifikasi/`. Tanpa tunnel, status tetap diperbarui lewat "Cek status" dan pemeriksaan berkala.

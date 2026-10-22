@@ -46,7 +46,11 @@ class PublikMixin:
 
 
 class DaftarBukuView(PublikMixin, generics.ListAPIView):
-    """GET /api/katalog/buku/?q=&kategori=&format=&urutan=&page=&ukuran= (FR-05, FR-07)."""
+    """GET /api/katalog/buku/?q=&kategori=&tipe=&urutan=&page=&ukuran= (FR-05, FR-07).
+
+    Filter jenis produk memakai ?tipe=, bukan ?format=, karena ?format= adalah parameter bawaan DRF
+    untuk memilih format respons (URL_FORMAT_OVERRIDE) dan sengaja tidak diubah.
+    """
 
     serializer_class = BukuRingkasSerializer
     pagination_class = HalamanKatalog
@@ -59,11 +63,11 @@ class DaftarBukuView(PublikMixin, generics.ListAPIView):
         kategori = parameter.get("kategori", "").strip()
         if kategori:
             qs = qs.filter(kategori__slug=kategori)
-        format_produk = parameter.get("format", "").strip()
-        if format_produk:
-            if format_produk not in Produk.Format.values:
-                raise ParseError("Format harus salah satu dari: cetak, ebook, audiobook.")
-            qs = qs.filter(ada_produk_aktif(format=format_produk))
+        tipe = parameter.get("tipe", "").strip()
+        if tipe:
+            if tipe not in Produk.Format.values:
+                raise ParseError("Tipe harus salah satu dari: cetak, ebook, audiobook.")
+            qs = qs.filter(ada_produk_aktif(format=tipe))
         urutan = parameter.get("urutan", "terbaru").strip() or "terbaru"
         if urutan not in URUTAN:
             raise ParseError("Urutan harus salah satu dari: terbaru, judul, harga, -harga.")

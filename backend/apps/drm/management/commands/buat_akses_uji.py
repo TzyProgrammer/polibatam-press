@@ -1,4 +1,8 @@
-"""Hak akses uji untuk pengujian lokal sebelum alur checkout dan Midtrans (Tahap F) tersedia."""
+"""Hak akses uji untuk pengujian lokal tanpa checkout dan Midtrans.
+
+Hanya untuk debug (DJANGO_DEBUG=True). Sesuai keputusan pemilik, perintah ini dan pesanan bertanda
+"uji-lokal" dihapus saat aplikasi final sehingga semua hak akses lahir dari pembayaran Midtrans.
+"""
 
 import os
 
@@ -78,8 +82,8 @@ class Command(BaseCommand):
             self.stdout.write("Hak akses sudah ada dan aktif.")
 
     def buat_item_pesanan_uji(self, pembeli, produk):
-        # Pesanan uji dibuat langsung lunas karena alur Midtrans belum tersedia; penandanya
-        # midtrans_payment_type="uji-lokal" sehingga mudah dibedakan dari pesanan sungguhan.
+        # Pesanan uji dibuat langsung lunas tanpa Midtrans; penandanya midtrans_payment_type="uji-lokal"
+        # sehingga mudah dibedakan dari pesanan sungguhan.
         pesanan = Pesanan.objects.create(
             pembeli=pembeli,
             status_pembayaran=Pesanan.StatusPembayaran.LUNAS,

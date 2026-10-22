@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -19,6 +19,7 @@ from .kode import hash_token
 from .kunci import dekripsi_kunci
 from .layanan import siapkan_salinan_ebook
 from .models import HakAkses, LogAksesKunci, PaketAudio, SalinanEbook, SesiStreaming
+from .serializers import KoleksiSerializer
 from .streaming import alamat_ip, buat_sesi, tulis_ulang_playlist
 
 TANPA_CACHE = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
@@ -196,6 +197,23 @@ class SalinanEbookView(APIView):
         )
         return Response(
             {"url": url, "kedaluwarsa": timezone.now() + timedelta(seconds=umur)}, headers=TANPA_CACHE
+        )
+
+
+class KoleksiView(generics.ListAPIView):
+    """GET /api/koleksi/ — ebook dan audiobook milik pembeli beserta statusnya (FR-13).
+
+    Hak akses yang dinonaktifkan admin tetap tampil dengan status "dicabut" agar pembeli tahu alasannya.
+    """
+
+    serializer_class = KoleksiSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            HakAkses.objects.filter(pembeli=self.request.user)
+            .select_related("produk__buku", "produk__paket_audio", "salinan_ebook", "item_pesanan__pesanan")
+            .order_by("-diberikan", "-pk")
         )
 
 

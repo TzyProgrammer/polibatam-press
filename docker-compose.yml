@@ -68,6 +68,18 @@ services:
       broker:
         condition: service_healthy
 
+  # Penjadwal tugas berkala (CELERY_BEAT_SCHEDULE di settings.py): tiap 5 menit pesanan yang menunggu
+  # pembayaran dicocokkan dengan Status API Midtrans. Berkas jadwal disimpan di /tmp container.
+  celery-beat:
+    build: ./backend
+    command: celery -A config beat -l info -s /tmp/celerybeat-schedule
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      broker:
+        condition: service_healthy
+
   nginx:
     image: nginx:alpine
     volumes:

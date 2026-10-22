@@ -55,7 +55,8 @@ class Pesanan(models.Model):
         TAKEAWAY = "takeaway", "Takeaway (ambil sendiri)"
 
     class StatusPengiriman(models.TextChoices):
-        TIDAK_ADA = "tidak_ada", "Tidak ada (produk digital)"
+        # Pesanan produk digital, atau pesanan yang batal/kedaluwarsa sebelum dibayar.
+        TIDAK_ADA = "tidak_ada", "Tidak ada"
         MENUNGGU = "menunggu", "Menunggu pembayaran"
         DIPROSES = "diproses", "Diproses"
         DIKIRIM = "dikirim", "Dikirim"
@@ -64,7 +65,8 @@ class Pesanan(models.Model):
 
     nomor = models.CharField(max_length=32, unique=True, editable=False)
     pembeli = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="pesanan")
-    # Status pembayaran hanya diubah oleh notifikasi Midtrans yang tanda tangannya valid.
+    # Status pembayaran hanya diubah apps.orders.pembayaran berdasarkan Status API Midtrans (dipicu
+    # notifikasi bertanda tangan valid, cek status oleh pembeli, atau pemeriksaan berkala).
     status_pembayaran = models.CharField(
         max_length=12, choices=StatusPembayaran.choices, default=StatusPembayaran.MENUNGGU, db_index=True
     )
@@ -82,8 +84,10 @@ class Pesanan(models.Model):
     total = models.PositiveIntegerField(default=0)
     snap_token = models.CharField(max_length=100, blank=True)
     snap_redirect_url = models.URLField(max_length=500, blank=True)
-    midtrans_transaction_id = models.CharField(max_length=64, blank=True)
-    midtrans_payment_type = models.CharField(max_length=32, blank=True)
+    midtrans_transaction_id = models.CharField("ID transaksi Midtrans", max_length=64, blank=True)
+    midtrans_payment_type = models.CharField("metode pembayaran", max_length=32, blank=True)
+    # Batas bayar = waktu checkout + BATAS_BAYAR_MENIT; dikirim juga ke Snap sebagai kedaluwarsa transaksi.
+    batas_bayar = models.DateTimeField(null=True, blank=True)
     dibayar_pada = models.DateTimeField(null=True, blank=True)
     dibuat = models.DateTimeField(auto_now_add=True)
     diperbarui = models.DateTimeField(auto_now=True)
@@ -97,6 +101,20 @@ class Pesanan(models.Model):
         if not self.nomor:
             self.nomor = self.buat_nomor()
         super().save(*args, **kwargs)
+
+    @property
+    def perlu_pengiriman(self):
+        return self.metode_pengiriman != self.MetodePengiriman.TANPA
+
+    def pilihan_status_pengiriman(self):
+        """Status pengiriman yang boleh dipilih admin: hanya untuk pesanan lunas yang berisi buku cetak."""
+        if self.status_pembayaran != self.StatusPembayaran.LUNAS or not self.perlu_pengiriman:
+            return []
+        if self.metode_pengiriman == self.MetodePengiriman.DELIVERY:
+            tengah = self.StatusPengiriman.DIKIRIM
+        else:
+            tengah = self.StatusPengiriman.SIAP_DIAMBIL
+        return [self.StatusPengiriman.DIPROSES, tengah, self.StatusPengiriman.SELESAI]
 
     @classmethod
     def buat_nomor(cls):

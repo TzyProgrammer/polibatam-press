@@ -73,13 +73,20 @@ class DaftarBukuTests(KatalogTestCase):
             with self.subTest(q=q):
                 self.assertEqual(self.slug(self.daftar(q=q)), hasil)
 
-    def test_filter_kategori_dan_format(self):
+    def test_filter_kategori_dan_tipe(self):
         self.assertEqual(self.slug(self.daftar(kategori="teknik")), ["keamanan-data-modern"])
-        self.assertEqual(self.slug(self.daftar(format="audiobook")), ["audiobook-belum-siap", "puisi-senja"])
-        self.assertEqual(self.slug(self.daftar(format="ebook", kategori="sastra")), [])
-        response = self.client.get(reverse("katalog-buku"), {"format": "pdf"})
+        self.assertEqual(self.slug(self.daftar(tipe="audiobook")), ["audiobook-belum-siap", "puisi-senja"])
+        self.assertEqual(self.slug(self.daftar(tipe="ebook", kategori="sastra")), [])
+        response = self.client.get(reverse("katalog-buku"), {"tipe": "pdf"})
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["detail"], "Format harus salah satu dari: cetak, ebook, audiobook.")
+        self.assertEqual(response.data["detail"], "Tipe harus salah satu dari: cetak, ebook, audiobook.")
+
+    def test_parameter_format_tetap_bawaan_drf(self):
+        # ?format= tidak dipakai sebagai filter; DRF memakainya untuk memilih format respons.
+        response = self.client.get(reverse("katalog-buku"), {"format": "json"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(self.client.get(reverse("katalog-buku"), {"format": "ebook"}).status_code, 404)
 
     def test_urutan(self):
         self.assertEqual(

@@ -92,7 +92,11 @@ class Produk(models.Model):
     buku = models.ForeignKey(Buku, on_delete=models.CASCADE, related_name="produk")
     format = models.CharField(max_length=10, choices=Format.choices)
     harga = models.PositiveIntegerField(validators=[MinValueValidator(1)], help_text="Rupiah, tanpa titik.")
-    stok = models.PositiveIntegerField(default=0, help_text="Hanya untuk buku cetak.")
+    stok = models.PositiveIntegerField(
+        default=0,
+        help_text="Hanya untuk buku cetak. Stok yang masih bisa dijual: berkurang saat checkout dan "
+        "kembali bila pesanan tidak dibayar sampai batas waktu.",
+    )
     berkas = models.FileField(
         upload_to=berkas_asli_upload_to,
         blank=True,

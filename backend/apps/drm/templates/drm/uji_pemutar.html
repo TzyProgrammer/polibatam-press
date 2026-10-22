@@ -40,7 +40,7 @@
   summary { cursor: pointer; color: var(--utama); }
   details form { margin-top: 8px; }
   audio { width: 100%; margin-top: 12px; }
-  #status-login, #info-sesi, #info-ebook, #info-keranjang { margin: 10px 0 0; color: var(--redup); }
+  #status-login, #info-sesi, #info-ebook, #info-keranjang, #info-checkout, #info-koleksi { margin: 10px 0 0; color: var(--redup); }
   .uji { display: grid; gap: 8px; }
   .uji button { text-align: left; }
   pre { background: var(--kode); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: .8rem; margin: 8px 0 0; }
@@ -53,7 +53,7 @@
 <body>
 <main>
   <h1>Halaman Uji Marketplace Polibatam Press</h1>
-  <p class="catatan">Halaman pengujian sebelum frontend Vue tersedia, hanya ada saat DEBUG: akun, audiobook AES-128, ebook ber-watermark, katalog, dan keranjang. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
+  <p class="catatan">Halaman pengujian sebelum frontend Vue tersedia, hanya ada saat DEBUG: akun, audiobook AES-128, ebook ber-watermark, katalog, keranjang, checkout dengan Midtrans sandbox, pesanan, dan koleksi. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
 
   <section>
     <h2>1. Akun</h2>
@@ -115,8 +115,8 @@
     <p class="catatan">Katalog bisa dibuka tanpa login, juga langsung di peramban: <a href="/api/katalog/buku/" target="_blank" rel="noopener">/api/katalog/buku/</a>. Keranjang perlu login.</p>
     <form id="form-katalog">
       <label>Cari judul, penulis, atau ISBN <input id="katalog-q" type="search"></label>
-      <label>Format
-        <select id="katalog-format">
+      <label>Tipe
+        <select id="katalog-tipe">
           <option value="">Semua format</option>
           <option value="cetak">Buku cetak</option>
           <option value="ebook">Ebook (PDF)</option>
@@ -138,6 +138,47 @@
   </section>
 
   <section>
+    <h2>6. Checkout dan pembayaran (Midtrans sandbox)</h2>
+    <p class="catatan">Checkout memproses seluruh isi keranjang. Stok buku cetak dipesan sampai batas bayar. Membayar QRIS di sandbox: pilih QRIS di popup Snap, salin URL gambar QR (klik kanan → salin alamat gambar), lalu tempel di <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" rel="noopener">QRIS Simulator</a>. Jangan membayar dengan aplikasi bank atau e-wallet sungguhan.</p>
+    <form id="form-checkout">
+      <label>Pengiriman (buku cetak)
+        <select id="checkout-metode" disabled>
+          <option value="">Tidak perlu (semua digital)</option>
+          <option value="delivery">Delivery (area Kota Batam)</option>
+          <option value="takeaway">Takeaway (ambil sendiri)</option>
+        </select>
+      </label>
+      <label>Nama penerima <input id="checkout-nama" autocomplete="name"></label>
+      <label>No. telepon <input id="checkout-telepon" type="tel" autocomplete="tel"></label>
+      <label>Alamat (delivery) <input id="checkout-alamat" autocomplete="street-address"></label>
+      <label>Kecamatan (delivery)
+        <select id="checkout-kecamatan"><option value="">Pilih kecamatan</option></select>
+      </label>
+      <button type="submit" id="tombol-checkout" disabled>Checkout dan bayar</button>
+    </form>
+    <p id="info-checkout">Login dan isi keranjang terlebih dahulu.</p>
+  </section>
+
+  <section>
+    <h2>7. Pesanan dan koleksi saya</h2>
+    <p class="catatan">Status pembayaran selalu dibaca server dari Midtrans (Status API), bukan dari hasil popup di peramban.</p>
+    <div class="baris">
+      <button type="button" id="tombol-pesanan" class="kedua" disabled>Muat pesanan</button>
+      <button type="button" id="tombol-koleksi" class="kedua" disabled>Muat koleksi</button>
+    </div>
+    <div class="tabel-gulir">
+      <table id="tabel-pesanan" hidden>
+        <thead><tr><th>Nomor</th><th>Isi</th><th>Total</th><th>Pembayaran</th><th>Pengiriman</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <pre id="detail-pesanan" hidden></pre>
+    <h3>Koleksi digital</h3>
+    <ul id="daftar-koleksi" class="daftar-katalog"></ul>
+    <p id="info-koleksi">Login untuk melihat koleksi.</p>
+  </section>
+
+  <section>
     <h2>Log</h2>
     <ol id="log"></ol>
   </section>
@@ -156,6 +197,9 @@ let hls = null;
 let sesi = null;          // sesi aktif: { playlist, token, produkId, email, teks }
 let sesiAkunLain = null;  // sesi terakhir milik akun sebelumnya, untuk uji 403
 let sudahDiputar = false;
+let keranjangTerakhir = null; // isi keranjang terakhir dari API, untuk formulir checkout
+let opsiCheckout = null;      // ongkir, kecamatan, lokasi takeaway, batas bayar
+let snapDimuat = null;        // Promise pemuatan snap.js Midtrans
 
 function catat(pesan, jenis = "info") {
   const li = document.createElement("li");
@@ -240,6 +284,9 @@ function tampilkanAkun() {
   el("tombol-putar").disabled = !masuk;
   el("tombol-ebook").disabled = !masuk;
   el("tombol-keranjang").disabled = !masuk;
+  el("tombol-pesanan").disabled = !masuk;
+  el("tombol-koleksi").disabled = !masuk;
+  perbaruiFormCheckout();
 }
 
 function hentikanPemutar() {
@@ -261,6 +308,12 @@ function keluarLokal() {
   el("detail-playlist").hidden = true;
   el("info-ebook").textContent = "Login untuk mengambil salinan ebook milik akun Anda.";
   kosongkanTampilanKeranjang("Login untuk memakai keranjang.");
+  opsiCheckout = null;
+  el("tabel-pesanan").querySelector("tbody").replaceChildren();
+  el("tabel-pesanan").hidden = true;
+  el("detail-pesanan").hidden = true;
+  el("daftar-koleksi").replaceChildren();
+  el("info-koleksi").textContent = "Login untuk melihat koleksi.";
   tampilkanAkun();
 }
 
@@ -283,9 +336,14 @@ el("form-login").addEventListener("submit", async (event) => {
   akun.refresh = r.data.refresh;
   akun.email = r.data.pengguna.email;
   el("sandi").value = "";
+  el("checkout-nama").value = r.data.pengguna.nama_lengkap || "";
+  el("checkout-telepon").value = r.data.pengguna.no_telepon || "";
+  el("checkout-alamat").value = r.data.pengguna.alamat || "";
   tampilkanAkun();
   catat(`Login berhasil sebagai ${akun.email} (peran ${r.data.pengguna.role}).`, "ok");
-  muatKeranjang();
+  await muatOpsiCheckout(); // sekaligus memuat keranjang
+  await muatPesanan();
+  await muatKoleksi();
 });
 
 el("form-daftar").addEventListener("submit", async (event) => {
@@ -537,9 +595,13 @@ function kosongkanTampilanKeranjang(pesan) {
   el("tabel-keranjang").querySelector("tbody").replaceChildren();
   el("tabel-keranjang").hidden = true;
   el("info-keranjang").textContent = pesan;
+  keranjangTerakhir = null;
+  perbaruiFormCheckout();
 }
 
 function tampilkanKeranjang(data) {
+  keranjangTerakhir = data;
+  perbaruiFormCheckout();
   const tbody = el("tabel-keranjang").querySelector("tbody");
   tbody.replaceChildren();
   for (const item of data.item) {
@@ -611,13 +673,234 @@ el("form-katalog").addEventListener("submit", async (event) => {
   event.preventDefault();
   const kueri = new URLSearchParams();
   if (el("katalog-q").value.trim()) kueri.set("q", el("katalog-q").value.trim());
-  if (el("katalog-format").value) kueri.set("format", el("katalog-format").value);
+  if (el("katalog-tipe").value) kueri.set("tipe", el("katalog-tipe").value);
   const r = await api(`/katalog/buku/?${kueri}`, { auth: false });
   if (r.status !== 200) return catat(`Katalog gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
   catat(`Katalog: ${r.data.count} buku ditemukan.`);
   tampilkanKatalog(r.data);
 });
 el("tombol-keranjang").addEventListener("click", muatKeranjang);
+
+function perbaruiFormCheckout() {
+  const masuk = Boolean(akun.akses);
+  const data = keranjangTerakhir;
+  const adaItem = Boolean(data && data.item.length);
+  const metode = el("checkout-metode");
+  metode.disabled = !(masuk && data && data.perlu_pengiriman);
+  if (!data || !data.perlu_pengiriman) metode.value = "";
+  else if (!metode.value) metode.value = "delivery";
+  el("checkout-nama").disabled = el("checkout-telepon").disabled = !metode.value;
+  el("checkout-alamat").disabled = el("checkout-kecamatan").disabled = metode.value !== "delivery";
+  el("tombol-checkout").disabled = !(masuk && adaItem && data.semua_tersedia);
+  const info = el("info-checkout");
+  if (!masuk) return (info.textContent = "Login dan isi keranjang terlebih dahulu.");
+  if (!adaItem) return (info.textContent = "Keranjang kosong.");
+  if (!data.semua_tersedia) return (info.textContent = "Ada item yang tidak tersedia; perbarui keranjang sebelum checkout.");
+  const ongkir = opsiCheckout && metode.value === "delivery" ? opsiCheckout.pengiriman.delivery.ongkir : 0;
+  const catatan = [`Total dibayar ${rupiah(data.total + ongkir)}${ongkir ? ` (termasuk ongkir ${rupiah(ongkir)})` : ""}`];
+  if (opsiCheckout && metode.value === "takeaway") catatan.push(`diambil di ${opsiCheckout.pengiriman.takeaway.lokasi}`);
+  if (opsiCheckout) catatan.push(`batas bayar ${opsiCheckout.batas_bayar_menit} menit setelah checkout`);
+  info.textContent = catatan.join(" · ") + ".";
+}
+
+async function muatOpsiCheckout() {
+  const r = await api("/pesanan/checkout/");
+  if (r.status !== 200) return catat(`Opsi checkout gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  opsiCheckout = r.data;
+  const pilihan = el("checkout-kecamatan");
+  const terpilih = pilihan.value;
+  pilihan.replaceChildren(new Option("Pilih kecamatan", ""));
+  for (const nama of r.data.pengiriman.delivery.kecamatan) pilihan.append(new Option(nama, nama));
+  pilihan.value = terpilih;
+  tampilkanKeranjang(r.data.keranjang);
+}
+
+el("checkout-metode").addEventListener("change", perbaruiFormCheckout);
+
+el("form-checkout").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const metode = el("checkout-metode").value;
+  const isian = {};
+  if (metode) {
+    isian.metode_pengiriman = metode;
+    isian.nama_penerima = el("checkout-nama").value.trim();
+    isian.no_telepon_penerima = el("checkout-telepon").value.trim();
+    if (metode === "delivery") {
+      isian.alamat = el("checkout-alamat").value.trim();
+      isian.kecamatan = el("checkout-kecamatan").value;
+    }
+  }
+  el("tombol-checkout").disabled = true;
+  const r = await api("/pesanan/checkout/", { method: "POST", body: isian });
+  if (r.status !== 201) {
+    catat(`Checkout gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    perbaruiFormCheckout();
+    return;
+  }
+  const batas = new Date(r.data.batas_bayar).toLocaleTimeString("id-ID");
+  catat(`Pesanan ${r.data.nomor} dibuat: total ${rupiah(r.data.total)} (ongkir ${rupiah(r.data.ongkir)}). Bayar sebelum pukul ${batas}.`, "ok");
+  await muatKeranjang();
+  await muatPesanan();
+  bayar(r.data);
+});
+
+function muatSnap(pembayaran) {
+  if (window.snap) return Promise.resolve(window.snap);
+  if (!pembayaran.client_key) return Promise.reject(new Error("MIDTRANS_CLIENT_KEY belum diisi di .env."));
+  if (!snapDimuat) {
+    snapDimuat = new Promise((berhasil, gagal) => {
+      const skrip = document.createElement("script");
+      skrip.src = pembayaran.snap_js;
+      skrip.dataset.clientKey = pembayaran.client_key; // atribut data-client-key yang dibaca snap.js
+      skrip.onload = () => {
+        if (window.snap) return berhasil(window.snap);
+        snapDimuat = null;
+        gagal(new Error("snap.js dimuat, tetapi objek snap tidak tersedia."));
+      };
+      skrip.onerror = () => {
+        snapDimuat = null;
+        skrip.remove();
+        gagal(new Error("snap.js gagal dimuat dari Midtrans."));
+      };
+      document.head.append(skrip);
+    });
+  }
+  return snapDimuat;
+}
+
+function tautanPembayaran(pesanan) {
+  const info = el("info-checkout");
+  info.textContent = `Pesanan ${pesanan.nomor}: `;
+  const tautan = document.createElement("a");
+  tautan.href = pesanan.pembayaran.redirect_url;
+  tautan.target = "_blank";
+  tautan.rel = "noopener";
+  tautan.textContent = "buka halaman pembayaran Snap di tab baru";
+  info.append(tautan, ", lalu klik \"Cek status\" di bagian 7 setelah membayar.");
+}
+
+async function bayar(pesanan) {
+  if (!pesanan.pembayaran) {
+    return catat(`Pesanan ${pesanan.nomor} tidak bisa dibayar lagi (sudah dibayar, dibatalkan, atau lewat batas bayar).`, "gagal");
+  }
+  let snap;
+  try {
+    snap = await muatSnap(pesanan.pembayaran);
+  } catch (e) {
+    catat(`${e.message} Halaman pembayaran tetap bisa dibuka lewat tautan di bagian 6.`, "gagal");
+    tautanPembayaran(pesanan);
+    return;
+  }
+  catat(`Membuka popup Snap untuk pesanan ${pesanan.nomor}.`);
+  const cek = () => cekStatus(pesanan.nomor);
+  // Hasil callback Snap hanya pemicu; status sebenarnya dibaca server dari Status API Midtrans.
+  snap.pay(pesanan.pembayaran.snap_token, {
+    onSuccess: () => { catat("Snap melaporkan pembayaran selesai; status dikonfirmasi ke server."); cek(); },
+    onPending: () => { catat("Snap: menunggu pembayaran. Setelah membayar di simulator, klik \"Cek status\"."); cek(); },
+    onError: () => { catat("Snap melaporkan pembayaran gagal.", "gagal"); cek(); },
+    onClose: () => catat("Popup Snap ditutup. Klik \"Bayar\" untuk membukanya lagi atau \"Cek status\" setelah membayar."),
+  });
+}
+
+async function ambilPesanan(nomor) {
+  const r = await api(`/pesanan/${encodeURIComponent(nomor)}/`);
+  if (r.status !== 200) {
+    catat(`Detail pesanan ${nomor} gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    return null;
+  }
+  return r.data;
+}
+
+async function cekStatus(nomor) {
+  const r = await api(`/pesanan/${encodeURIComponent(nomor)}/cek-status/`, { method: "POST" });
+  if (r.status !== 200) return catat(`Cek status ${nomor} gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  const d = r.data;
+  const metode = d.metode_pembayaran ? ` (${d.metode_pembayaran})` : "";
+  catat(`Status ${nomor} menurut Midtrans: ${d.status_pembayaran_label}${metode}.`, d.status_pembayaran === "lunas" ? "ok" : "info");
+  await muatPesanan();
+  if (d.status_pembayaran === "lunas") await muatKoleksi();
+}
+
+async function lihatDetail(nomor) {
+  const data = await ambilPesanan(nomor);
+  if (!data) return;
+  if (data.pembayaran) data.pembayaran = { ...data.pembayaran, snap_token: `${data.pembayaran.snap_token.slice(0, 8)}…` };
+  el("detail-pesanan").textContent = JSON.stringify(data, null, 2);
+  el("detail-pesanan").hidden = false;
+}
+
+async function muatPesanan() {
+  const r = await api("/pesanan/");
+  if (r.status !== 200) return catat(`Pesanan gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  const tbody = el("tabel-pesanan").querySelector("tbody");
+  tbody.replaceChildren();
+  for (const p of r.data.results) {
+    const tr = document.createElement("tr");
+    const sel = (teks) => {
+      const td = document.createElement("td");
+      td.textContent = teks;
+      tr.append(td);
+      return td;
+    };
+    sel(p.nomor);
+    sel(`${p.ringkasan} (${p.jumlah_item} barang)`);
+    sel(rupiah(p.total));
+    sel(p.status_pembayaran_label);
+    sel(p.metode_pengiriman === "tanpa" ? "–" : `${p.metode_pengiriman_label}: ${p.status_pengiriman_label}`);
+    const aksi = sel("");
+    if (p.status_pembayaran === "menunggu") {
+      aksi.append(
+        tombolKecil("Bayar", async () => {
+          const detail = await ambilPesanan(p.nomor);
+          if (detail) bayar(detail);
+        }),
+        " ",
+        tombolKecil("Cek status", () => cekStatus(p.nomor)),
+        " ",
+      );
+    }
+    aksi.append(tombolKecil("Detail", () => lihatDetail(p.nomor)));
+    tbody.append(tr);
+  }
+  el("tabel-pesanan").hidden = !r.data.results.length;
+  if (!r.data.results.length) catat("Belum ada pesanan.");
+}
+
+async function muatKoleksi() {
+  const r = await api("/koleksi/");
+  if (r.status !== 200) return catat(`Koleksi gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  const daftar = el("daftar-koleksi");
+  daftar.replaceChildren();
+  el("info-koleksi").textContent = r.data.length
+    ? `${r.data.length} produk digital.`
+    : "Koleksi masih kosong. Ebook dan audiobook masuk ke sini setelah pesanan lunas.";
+  for (const k of r.data) {
+    const li = document.createElement("li");
+    const judul = document.createElement("strong");
+    judul.textContent = k.buku.judul;
+    const info = document.createElement("span");
+    info.textContent = ` — ${k.format_label} · ${k.keterangan} · ${k.nomor_pesanan}`;
+    const baris = document.createElement("div");
+    baris.className = "baris";
+    if (k.format === "ebook") {
+      baris.append(tombolKecil("Buka ebook (bagian 4)", () => {
+        el("ebook-id").value = k.produk_id;
+        el("tombol-ebook").click();
+      }, !k.aktif));
+    } else {
+      baris.append(tombolKecil("Putar (bagian 2)", () => {
+        el("produk-id").value = k.produk_id;
+        el("tombol-putar").click();
+        el("pemutar").scrollIntoView({ behavior: "smooth", block: "center" });
+      }, !k.aktif || k.status !== "siap"));
+    }
+    li.append(judul, info, baris);
+    daftar.append(li);
+  }
+}
+
+el("tombol-pesanan").addEventListener("click", muatPesanan);
+el("tombol-koleksi").addEventListener("click", muatKoleksi);
 
 const parameter = new URLSearchParams(location.search);
 if (parameter.get("produk")) el("produk-id").value = parameter.get("produk");

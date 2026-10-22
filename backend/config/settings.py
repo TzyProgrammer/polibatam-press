@@ -123,11 +123,12 @@ REST_FRAMEWORK = {
         "sesi_streaming": "20/min",
         "kunci": "60/min",
         "ebook": "30/min",
+        "checkout": "10/min",
+        "cek_status": "20/min",
+        "notifikasi_midtrans": "120/min",
     },
     # Satu proxy (Nginx) di depan Django: IP klien diambil dari entri terakhir X-Forwarded-For.
     "NUM_PROXIES": 1,
-    # Parameter ?format= dipakai filter katalog (cetak/ebook/audiobook), bukan pemilih format respons DRF.
-    "URL_FORMAT_OVERRIDE": None,
 }
 
 SIMPLE_JWT = {
@@ -177,3 +178,31 @@ FERNET_MASTER_KEY = os.environ.get("FERNET_MASTER_KEY", "")
 WATERMARK_SECRET = os.environ.get("WATERMARK_SECRET", "")
 # Umur sesi streaming audiobook (menit)
 STREAMING_SESSION_MINUTES = int(os.environ.get("STREAMING_SESSION_MINUTES", "10"))
+
+# Pembayaran Midtrans Snap (Tahap F). Server key hanya dipakai server dan tidak pernah dikirim ke
+# peramban; client key memang untuk peramban (membuka Snap).
+MIDTRANS_SERVER_KEY = os.environ.get("MIDTRANS_SERVER_KEY", "")
+MIDTRANS_CLIENT_KEY = os.environ.get("MIDTRANS_CLIENT_KEY", "")
+MIDTRANS_IS_PRODUCTION = env_bool("MIDTRANS_IS_PRODUCTION", False)
+# Metode pembayaran yang ditampilkan Snap (FR-11: QRIS = other_qris). Dipisah koma, mis. other_qris,gopay
+MIDTRANS_ENABLED_PAYMENTS = env_list("MIDTRANS_ENABLED_PAYMENTS") or ["other_qris"]
+
+# Checkout dan pengiriman (Tahap F)
+# Batas bayar sejak checkout (menit). Stok buku cetak dipesan selama itu, lalu kembali bila tidak dibayar.
+BATAS_BAYAR_MENIT = int(os.environ.get("BATAS_BAYAR_MENIT") or 60)
+# Ongkir tetap delivery area Kota Batam (rupiah). Tarif sementara sampai ada keputusan klien.
+ONGKIR_KOTA_BATAM = int(os.environ.get("ONGKIR_KOTA_BATAM") or 15000)
+# Tempat pengambilan pesanan takeaway (keputusan pemilik, 22 Oktober 2026)
+LOKASI_TAKEAWAY = (
+    os.environ.get("LOKASI_TAKEAWAY") or "Gedung TA Kampus Polibatam, Lantai 1 (Kantor Polibatam Store)"
+)
+
+# Tugas berkala (layanan celery-beat): pesanan yang menunggu pembayaran dicocokkan dengan Status API
+# Midtrans, sehingga status tetap benar walaupun notifikasi tidak sampai dan stok pesanan yang
+# kedaluwarsa kembali.
+CELERY_BEAT_SCHEDULE = {
+    "periksa-pesanan-menunggu": {
+        "task": "apps.orders.tasks.periksa_pesanan_menunggu",
+        "schedule": 300.0,
+    },
+}
