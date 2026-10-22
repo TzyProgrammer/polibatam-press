@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from .layanan import antrikan_pengemasan
 from .models import HakAkses, LogAksesKunci, PaketAudio, SalinanEbook, SesiStreaming
 
 
@@ -30,14 +31,25 @@ class HakAksesAdmin(admin.ModelAdmin):
 
 @admin.register(PaketAudio)
 class PaketAudioAdmin(admin.ModelAdmin):
-    list_display = ("produk", "status", "jumlah_segmen", "durasi_detik", "diproses_pada")
+    list_display = ("produk", "status", "ada_kunci", "jumlah_segmen", "durasi_detik", "diproses_pada")
     list_filter = ("status",)
     search_fields = ("produk__buku__judul",)
     fields = (
-        "produk", "status", "prefix_hls", "berkas_sumber", "jumlah_segmen", "durasi_detik",
+        "produk", "status", "ada_kunci", "prefix_hls", "berkas_sumber", "jumlah_segmen", "durasi_detik",
         "pesan_galat", "diproses_pada",
     )
     readonly_fields = fields
+    actions = ["proses_ulang"]
+
+    @admin.display(description="Kunci tersimpan", boolean=True)
+    def ada_kunci(self, obj):
+        # Hanya keberadaan kunci yang ditampilkan, tidak pernah isinya.
+        return bool(obj.kunci_terenkripsi)
+
+    @admin.action(description="Proses ulang paket audio terpilih")
+    def proses_ulang(self, request, queryset):
+        jumlah = sum(1 for paket in queryset.select_related("produk") if antrikan_pengemasan(paket.produk, paksa=True))
+        self.message_user(request, f"{jumlah} paket audio diantrekan untuk diproses ulang.")
 
     def has_add_permission(self, request):
         return False

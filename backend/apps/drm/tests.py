@@ -76,7 +76,7 @@ class ModelDRMTests(TestCase):
             HakAkses.objects.create(pembeli=self.pembeli, produk=self.ebook, item_pesanan=item_lain)
 
     def test_masa_berlaku_sesi_streaming(self):
-        paket = PaketAudio.objects.create(produk=self.audiobook)
+        paket = self.audiobook.paket_audio  # dibuat otomatis saat MP3 diunggah (Tahap B)
         sesi = SesiStreaming.objects.create(
             pembeli=self.pembeli, paket=paket, token_hash=hash_token("a"),
             kedaluwarsa=timezone.now() + timedelta(minutes=10),
@@ -89,6 +89,7 @@ class ModelDRMTests(TestCase):
         self.assertFalse(sesi.masih_berlaku)
 
     def test_paket_audio_awal_menunggu_tanpa_kunci(self):
-        paket = PaketAudio.objects.create(produk=self.audiobook)
+        paket = PaketAudio.objects.get(produk=self.audiobook)
         self.assertEqual(paket.status, PaketAudio.Status.MENUNGGU)
+        self.assertEqual(paket.berkas_sumber, self.audiobook.berkas.name)
         self.assertIsNone(paket.kunci_terenkripsi)
