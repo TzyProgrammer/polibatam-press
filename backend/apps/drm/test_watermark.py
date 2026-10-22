@@ -415,7 +415,7 @@ class AdminSalinanEbookTests(EbookTestCase):
         self.admin = User.objects.create_superuser(email="admin@example.com", password="x", nama_lengkap="Admin")
         self.client.force_login(self.admin)
         self.salinan = self.salinan_siap()
-        self.url_lacak = reverse("admin:drm_salinanebook_lacak")
+        self.url_lacak = reverse("admin:drm_lacak_kebocoran")
 
     def unggah(self, data, nama="bocor.pdf"):
         return self.client.post(self.url_lacak, {"berkas": SimpleUploadedFile(nama, data, "application/pdf")})
@@ -429,6 +429,23 @@ class AdminSalinanEbookTests(EbookTestCase):
         self.assertContains(response, self.item.pesanan.nomor)
         self.assertContains(response, self.salinan.kode_watermark)
         self.assertContains(response, "Asli: kode diterbitkan sistem")
+
+    def test_lacak_kebocoran_tampil_di_menu_admin(self):
+        self.assertEqual(self.url_lacak, "/admin/drm/lacak-kebocoran/")
+        tautan = f'<a href="{self.url_lacak}">Lacak kebocoran</a>'
+        for halaman in (reverse("admin:index"), reverse("admin:app_list", args=["drm"])):
+            with self.subTest(halaman=halaman):
+                self.assertContains(self.client.get(halaman), tautan, html=True)
+        # Di halaman lacak, hanya menu Lacak kebocoran yang ditandai sebagai halaman aktif.
+        response = self.client.get(self.url_lacak)
+        self.assertContains(response, 'class="model-lacakkebocoran current-model"')
+        self.assertNotContains(response, 'class="model-salinanebook current-model"')
+
+    def test_staf_tanpa_izin_tidak_melihat_menu_dan_ditolak(self):
+        staf = User.objects.create_user(email="staf@example.com", password="x", nama_lengkap="Staf", role="admin")
+        self.client.force_login(staf)
+        self.assertNotContains(self.client.get(reverse("admin:index")), "Lacak kebocoran")
+        self.assertEqual(self.client.get(self.url_lacak).status_code, 403)
 
     def test_halaman_lacak_menolak_bukan_pdf_dan_tanpa_login_admin(self):
         self.assertContains(self.unggah(b"bukan pdf", "catatan.txt"), "Berkas bukan PDF.")

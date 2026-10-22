@@ -52,4 +52,5 @@ Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume)
    ```
 
 4. Buka halaman uji lewat `http://localhost:8080` (origin yang terdaftar di CORS bucket), login, lalu putar audiobook, jalankan uji keamanan, atau ambil salinan ebook ber-watermark.
-5. Lacak kebocoran: unggah PDF salinan di Admin → Salinan ebook → "Lacak kebocoran".
+5. Lacak kebocoran: unggah PDF salinan di Admin → menu DRM → "Lacak kebocoran".
+6. Katalog dan keranjang: bagian 5 halaman uji. Katalog juga bisa dibuka langsung di http://localhost:8080/api/katalog/buku/ (contoh: `?q=data&format=ebook&urutan=harga`).

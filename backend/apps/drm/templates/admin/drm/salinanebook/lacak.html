@@ -16,7 +16,6 @@
 <div class="breadcrumbs">
   <a href="{% url 'admin:index' %}">Beranda</a>
   &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
-  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
   &rsaquo; Lacak kebocoran
 </div>
 {% endblock %}
@@ -24,7 +23,8 @@
 {% block content %}
 <div id="content-main">
   <p>Unggah PDF yang diduga bocor. Sistem membaca kode watermark dari metadata dan dari teks halaman,
-     mencari salinan pembeli yang memiliki kode itu, lalu menghitung ulang HMAC untuk memastikan kode asli.</p>
+     mencari salinan pembeli yang memiliki kode itu, lalu menghitung ulang HMAC untuk memastikan kode asli.
+     Daftar semua salinan ada di <a href="{% url opts|admin_urlname:'changelist' %}">Salinan ebook</a>.</p>
 
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}

@@ -16,7 +16,7 @@ DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "config.apps.AdminPolibatamConfig",  # django.contrib.admin dengan situs admin kustom (config/admin.py)
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -126,6 +126,8 @@ REST_FRAMEWORK = {
     },
     # Satu proxy (Nginx) di depan Django: IP klien diambil dari entri terakhir X-Forwarded-For.
     "NUM_PROXIES": 1,
+    # Parameter ?format= dipakai filter katalog (cetak/ebook/audiobook), bukan pemilih format respons DRF.
+    "URL_FORMAT_OVERRIDE": None,
 }
 
 SIMPLE_JWT = {

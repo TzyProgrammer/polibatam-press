@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Uji Konten Digital</title>
+<title>Halaman Uji Marketplace</title>
 <style>
   :root {
     --latar: #f4f5f7; --kartu: #ffffff; --teks: #1d2433; --redup: #5b6475; --garis: #d9dde5;
@@ -24,15 +24,23 @@
   section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
   form, .baris { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
   label { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: var(--redup); flex: 1 1 180px; }
-  input { font: inherit; padding: 7px 9px; border: 1px solid var(--garis); border-radius: 6px; background: var(--latar); color: var(--teks); }
+  input, select { font: inherit; padding: 7px 9px; border: 1px solid var(--garis); border-radius: 6px; background: var(--latar); color: var(--teks); }
   button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--utama); background: var(--utama); color: var(--utama-teks); cursor: pointer; }
   button.kedua { background: transparent; color: var(--utama); }
   button:disabled { opacity: .45; cursor: not-allowed; }
+  button.kecil { padding: 2px 9px; }
+  h3 { font-size: .95rem; margin: 18px 0 8px; }
+  .daftar-katalog { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+  .daftar-katalog li { border: 1px solid var(--garis); border-radius: 8px; padding: 10px; }
+  .daftar-katalog .baris { margin-top: 8px; }
+  .tabel-gulir { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--garis); vertical-align: middle; }
   details { margin-top: 12px; }
   summary { cursor: pointer; color: var(--utama); }
   details form { margin-top: 8px; }
   audio { width: 100%; margin-top: 12px; }
-  #status-login, #info-sesi, #info-ebook { margin: 10px 0 0; color: var(--redup); }
+  #status-login, #info-sesi, #info-ebook, #info-keranjang { margin: 10px 0 0; color: var(--redup); }
   .uji { display: grid; gap: 8px; }
   .uji button { text-align: left; }
   pre { background: var(--kode); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: .8rem; margin: 8px 0 0; }
@@ -44,8 +52,8 @@
 </head>
 <body>
 <main>
-  <h1>Uji Konten Digital: Audiobook AES-128 dan Ebook Ber-watermark</h1>
-  <p class="catatan">Halaman pengujian, hanya tersedia saat DEBUG. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
+  <h1>Halaman Uji Marketplace Polibatam Press</h1>
+  <p class="catatan">Halaman pengujian sebelum frontend Vue tersedia, hanya ada saat DEBUG: akun, audiobook AES-128, ebook ber-watermark, katalog, dan keranjang. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
 
   <section>
     <h2>1. Akun</h2>
@@ -100,6 +108,33 @@
       <button type="button" id="tombol-ebook" disabled>Ambil salinan saya</button>
     </div>
     <p id="info-ebook">Setiap pembeli menerima salinan PDF sendiri yang bertanda nama, email tersamar, nomor pesanan, dan kode unik. Tautan berlaku 5 menit.</p>
+  </section>
+
+  <section>
+    <h2>5. Katalog dan keranjang</h2>
+    <p class="catatan">Katalog bisa dibuka tanpa login, juga langsung di peramban: <a href="/api/katalog/buku/" target="_blank" rel="noopener">/api/katalog/buku/</a>. Keranjang perlu login.</p>
+    <form id="form-katalog">
+      <label>Cari judul, penulis, atau ISBN <input id="katalog-q" type="search"></label>
+      <label>Format
+        <select id="katalog-format">
+          <option value="">Semua format</option>
+          <option value="cetak">Buku cetak</option>
+          <option value="ebook">Ebook (PDF)</option>
+          <option value="audiobook">Audiobook (MP3)</option>
+        </select>
+      </label>
+      <button type="submit">Cari</button>
+    </form>
+    <ul id="hasil-katalog" class="daftar-katalog"></ul>
+    <h3>Keranjang</h3>
+    <button type="button" id="tombol-keranjang" class="kedua" disabled>Muat keranjang</button>
+    <div class="tabel-gulir">
+      <table id="tabel-keranjang" hidden>
+        <thead><tr><th>Produk</th><th>Harga</th><th>Jumlah</th><th>Subtotal</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="info-keranjang">Login untuk memakai keranjang.</p>
   </section>
 
   <section>
@@ -204,6 +239,7 @@ function tampilkanAkun() {
   el("tombol-logout").disabled = !masuk;
   el("tombol-putar").disabled = !masuk;
   el("tombol-ebook").disabled = !masuk;
+  el("tombol-keranjang").disabled = !masuk;
 }
 
 function hentikanPemutar() {
@@ -224,6 +260,7 @@ function keluarLokal() {
   el("info-sesi").textContent = "Belum ada sesi.";
   el("detail-playlist").hidden = true;
   el("info-ebook").textContent = "Login untuk mengambil salinan ebook milik akun Anda.";
+  kosongkanTampilanKeranjang("Login untuk memakai keranjang.");
   tampilkanAkun();
 }
 
@@ -248,6 +285,7 @@ el("form-login").addEventListener("submit", async (event) => {
   el("sandi").value = "";
   tampilkanAkun();
   catat(`Login berhasil sebagai ${akun.email} (peran ${r.data.pengguna.role}).`, "ok");
+  muatKeranjang();
 });
 
 el("form-daftar").addEventListener("submit", async (event) => {
@@ -457,6 +495,129 @@ el("tombol-ebook").addEventListener("click", async () => {
   info.append(tautan);
   catat("Tautan presigned ke salinan ebook milik akun ini dibuat (berlaku 5 menit).", "ok");
 });
+
+const rupiah = (angka) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(angka);
+
+function tombolKecil(teks, aksi, nonaktif = false) {
+  const tombol = document.createElement("button");
+  tombol.type = "button";
+  tombol.className = "kedua kecil";
+  tombol.textContent = teks;
+  tombol.disabled = nonaktif;
+  tombol.addEventListener("click", aksi);
+  return tombol;
+}
+
+function tampilkanKatalog(data) {
+  const daftar = el("hasil-katalog");
+  daftar.replaceChildren();
+  if (!data.results.length) {
+    daftar.textContent = "Tidak ada buku yang cocok.";
+    return;
+  }
+  for (const buku of data.results) {
+    const li = document.createElement("li");
+    const judul = document.createElement("strong");
+    judul.textContent = buku.judul;
+    const info = document.createElement("span");
+    info.textContent = ` — ${buku.penulis}${buku.kategori ? ` · ${buku.kategori.nama}` : ""}`;
+    const baris = document.createElement("div");
+    baris.className = "baris";
+    for (const produk of buku.produk) {
+      const label = `+ ${produk.format_label} ${rupiah(produk.harga)}${produk.tersedia ? "" : ` (${produk.keterangan})`}`;
+      baris.append(tombolKecil(label, () => tambahKeKeranjang(produk.id), !produk.tersedia));
+    }
+    li.append(judul, info, baris);
+    daftar.append(li);
+  }
+}
+
+function kosongkanTampilanKeranjang(pesan) {
+  el("tabel-keranjang").querySelector("tbody").replaceChildren();
+  el("tabel-keranjang").hidden = true;
+  el("info-keranjang").textContent = pesan;
+}
+
+function tampilkanKeranjang(data) {
+  const tbody = el("tabel-keranjang").querySelector("tbody");
+  tbody.replaceChildren();
+  for (const item of data.item) {
+    const tr = document.createElement("tr");
+    const sel = (teks) => {
+      const td = document.createElement("td");
+      td.textContent = teks;
+      tr.append(td);
+      return td;
+    };
+    sel(`${item.produk.buku.judul} (${item.produk.format_label})`);
+    sel(rupiah(item.produk.harga));
+    const jumlah = sel(item.produk.format === "cetak" ? "" : "1");
+    if (item.produk.format === "cetak") {
+      const angka = document.createElement("span");
+      angka.textContent = ` ${item.jumlah} `;
+      jumlah.append(
+        tombolKecil("−", () => ubahJumlahItem(item.id, item.jumlah - 1), item.jumlah <= 1),
+        angka,
+        tombolKecil("+", () => ubahJumlahItem(item.id, item.jumlah + 1)),
+      );
+    }
+    sel(rupiah(item.subtotal));
+    sel(item.tersedia ? "Tersedia" : item.keterangan);
+    sel("").append(tombolKecil("Hapus", () => hapusItemKeranjang(item.id)));
+    tbody.append(tr);
+  }
+  el("tabel-keranjang").hidden = !data.item.length;
+  if (!data.item.length) {
+    el("info-keranjang").textContent = "Keranjang kosong.";
+    return;
+  }
+  const catatan = [
+    `Total ${rupiah(data.total)} untuk ${data.jumlah_item} barang`,
+    data.perlu_pengiriman ? "perlu pengiriman (ada buku cetak)" : "tanpa pengiriman (semua digital)",
+  ];
+  if (!data.semua_tersedia) catatan.push("ada item tidak tersedia yang tidak dihitung");
+  el("info-keranjang").textContent = catatan.join(" · ") + ".";
+}
+
+async function muatKeranjang() {
+  const r = await api("/keranjang/");
+  if (r.status !== 200) return catat(`Keranjang gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  tampilkanKeranjang(r.data);
+}
+
+async function tambahKeKeranjang(produkId) {
+  if (!akun.akses) return catat("Login terlebih dahulu untuk memakai keranjang.", "gagal");
+  const r = await api("/keranjang/item/", { method: "POST", body: { produk_id: produkId, jumlah: 1 } });
+  if (r.status !== 201) return catat(`Gagal menambah ke keranjang (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  catat("Produk ditambahkan ke keranjang.", "ok");
+  tampilkanKeranjang(r.data);
+}
+
+async function ubahJumlahItem(itemId, jumlah) {
+  const r = await api(`/keranjang/item/${itemId}/`, { method: "PATCH", body: { jumlah } });
+  if (r.status !== 200) return catat(`Jumlah tidak bisa diubah (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  tampilkanKeranjang(r.data);
+}
+
+async function hapusItemKeranjang(itemId) {
+  const r = await api(`/keranjang/item/${itemId}/`, { method: "DELETE" });
+  if (r.status !== 200) return catat(`Item tidak bisa dihapus (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  catat("Item dihapus dari keranjang.");
+  tampilkanKeranjang(r.data);
+}
+
+el("form-katalog").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const kueri = new URLSearchParams();
+  if (el("katalog-q").value.trim()) kueri.set("q", el("katalog-q").value.trim());
+  if (el("katalog-format").value) kueri.set("format", el("katalog-format").value);
+  const r = await api(`/katalog/buku/?${kueri}`, { auth: false });
+  if (r.status !== 200) return catat(`Katalog gagal dimuat (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  catat(`Katalog: ${r.data.count} buku ditemukan.`);
+  tampilkanKatalog(r.data);
+});
+el("tombol-keranjang").addEventListener("click", muatKeranjang);
 
 const parameter = new URLSearchParams(location.search);
 if (parameter.get("produk")) el("produk-id").value = parameter.get("produk");

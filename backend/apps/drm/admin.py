@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.template.response import TemplateResponse
-from django.urls import path
 
 from .forms import FormLacakKebocoran
 from .lacak import lacak_kebocoran
@@ -77,7 +76,7 @@ class PaketAudioAdmin(HanyaBacaMixin, admin.ModelAdmin):
 
 @admin.register(SalinanEbook)
 class SalinanEbookAdmin(HanyaBacaMixin, admin.ModelAdmin):
-    """Hanya dilihat; aksi "Proses ulang" dan halaman "Lacak kebocoran" (FR-16)."""
+    """Hanya dilihat; aksi "Proses ulang". Halaman Lacak kebocoran ada di menu DRM (lihat bawah)."""
 
     list_display = ("kode_watermark", "pembeli", "produk", "status", "siap_pada")
     list_filter = ("status",)
@@ -104,39 +103,42 @@ class SalinanEbookAdmin(HanyaBacaMixin, admin.ModelAdmin):
         )
         self.message_user(request, f"{jumlah} salinan ebook diantrekan untuk diproses ulang.")
 
-    def get_urls(self):
-        lacak = path(
-            "lacak-kebocoran/", self.admin_site.admin_view(self.lacak_view), name="drm_salinanebook_lacak"
-        )
-        return [lacak, *super().get_urls()]
 
-    def lacak_view(self, request):
-        """Unggah PDF yang diduga bocor → kode watermark → pembeli dan pesanan."""
-        if not self.has_view_permission(request):
-            raise PermissionDenied
-        hasil = nama_berkas = None
-        if request.method == "POST":
-            form = FormLacakKebocoran(request.POST, request.FILES)
-            if form.is_valid():
-                berkas = form.cleaned_data["berkas"]
-                nama_berkas = berkas.name
-                try:
-                    hasil = lacak_kebocoran(berkas.read())
-                except GagalWatermark as exc:
-                    form.add_error("berkas", str(exc))
-                except ImproperlyConfigured as exc:
-                    form.add_error(None, str(exc))
-        else:
-            form = FormLacakKebocoran()
-        context = {
-            **self.admin_site.each_context(request),
-            "opts": self.model._meta,
-            "title": "Lacak kebocoran ebook",
-            "form": form,
-            "hasil": hasil,
-            "nama_berkas": nama_berkas,
-        }
-        return TemplateResponse(request, "admin/drm/salinanebook/lacak.html", context)
+IZIN_LACAK = "drm.view_salinanebook"
+
+
+def lacak_kebocoran_view(request):
+    """FR-16: unggah PDF yang diduga bocor → kode watermark → pembeli dan pesanan."""
+    if not request.user.has_perm(IZIN_LACAK):
+        raise PermissionDenied
+    hasil = nama_berkas = None
+    if request.method == "POST":
+        form = FormLacakKebocoran(request.POST, request.FILES)
+        if form.is_valid():
+            berkas = form.cleaned_data["berkas"]
+            nama_berkas = berkas.name
+            try:
+                hasil = lacak_kebocoran(berkas.read())
+            except GagalWatermark as exc:
+                form.add_error("berkas", str(exc))
+            except ImproperlyConfigured as exc:
+                form.add_error(None, str(exc))
+    else:
+        form = FormLacakKebocoran()
+    context = {
+        **admin.site.each_context(request),
+        "opts": SalinanEbook._meta,
+        "title": "Lacak kebocoran ebook",
+        "form": form,
+        "hasil": hasil,
+        "nama_berkas": nama_berkas,
+    }
+    return TemplateResponse(request, "admin/drm/salinanebook/lacak.html", context)
+
+
+# Tampil sebagai menu "Lacak kebocoran" di bagian DRM (menu kiri dan beranda admin),
+# beralamat /admin/drm/lacak-kebocoran/.
+admin.site.daftarkan_halaman("drm", "Lacak kebocoran", "lacak-kebocoran", lacak_kebocoran_view, IZIN_LACAK)
 
 
 @admin.register(SesiStreaming)
