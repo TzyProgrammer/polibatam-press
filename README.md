@@ -14,7 +14,7 @@ Prasyarat: Docker Desktop (WSL2).
    docker compose ps
    ```
 
-3. Migrasi database dan buat bucket S3:
+3. Migrasi database, lalu buat bucket S3 beserta aturan CORS-nya (jalankan ulang bila origin di `.env` berubah):
 
    ```bash
    docker compose exec django python manage.py migrate
@@ -40,3 +40,15 @@ Port host (semua terikat ke `127.0.0.1`, bisa diubah lewat `.env`):
 Bila `S3_HOST_PORT` diubah, sesuaikan juga `S3_PUBLIC_ENDPOINT_URL`.
 
 Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume).
+
+## Uji pemutar audiobook (hanya saat `DJANGO_DEBUG=True`)
+
+1. Tambahkan buku beserta produk Audiobook (MP3) di http://localhost:8080/admin/, tunggu status DRM "Siap diputar".
+2. Daftarkan akun pembeli di http://localhost:8080/uji-pemutar/ (bagian "Daftar").
+3. Beri akun itu hak akses tanpa checkout (tanpa `--produk` perintah ini menampilkan daftar audiobook):
+
+   ```bash
+   docker compose exec django python manage.py buat_akses_uji --email <email pembeli> --produk <ID produk>
+   ```
+
+4. Buka halaman uji pemutar lewat `http://localhost:8080` (origin yang terdaftar di CORS bucket), login, lalu putar dan jalankan uji keamanan.

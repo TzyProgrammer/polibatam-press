@@ -5,9 +5,8 @@ from django.contrib.admin import helpers
 
 from .models import Buku, Kategori, Produk
 
-# Tombol halaman tambah/ubah Kategori dan Buku diatur di
-# templates/admin/catalog/submit_line.html: satu tombol saja,
-# "Tambah" saat menambah data dan "Simpan Perubahan" saat mengubah.
+# Tombol halaman tambah/ubah diatur global di backend/templates/admin/submit_line.html:
+# satu tombol saja, "Tambah" saat menambah data dan "Simpan Perubahan" saat mengubah.
 
 
 class InlineFormSetTeksTambah(helpers.InlineAdminFormSet):

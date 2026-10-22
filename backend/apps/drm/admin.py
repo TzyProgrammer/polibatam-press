@@ -1,11 +1,18 @@
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 
 from .layanan import antrikan_pengemasan
 from .models import HakAkses, LogAksesKunci, PaketAudio, SalinanEbook, SesiStreaming
 
 
 class HanyaBacaMixin:
-    """Data jejak keamanan: boleh dilihat, tidak boleh dibuat, diubah, atau dihapus dari admin."""
+    """Data hasil sistem: hanya bisa dilihat di admin (tanpa tombol simpan dan tanpa hapus).
+
+    Izin hapus sengaja tidak dimatikan: Django Admin memeriksa izin hapus setiap objek terkait
+    sebelum menghapus induknya, sehingga tanpa izin itu buku/produk audiobook tidak bisa dihapus.
+    Data ini ikut terhapus bersama induknya, tetapi tidak bisa dihapus satu per satu.
+    Aksi admin lain (misalnya "Proses ulang") tetap tersedia.
+    """
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -13,8 +20,17 @@ class HanyaBacaMixin:
     def has_change_permission(self, request, obj=None):
         return False
 
-    def has_delete_permission(self, request, obj=None):
-        return False
+    def get_actions(self, request):
+        aksi = super().get_actions(request)
+        aksi.pop("delete_selected", None)
+        return aksi
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = {**(extra_context or {}), "show_delete": False}
+        return super().change_view(request, object_id, form_url, extra_context)
+
+    def delete_view(self, request, object_id, extra_context=None):
+        raise PermissionDenied
 
 
 @admin.register(HakAkses)
@@ -30,7 +46,9 @@ class HakAksesAdmin(admin.ModelAdmin):
 
 
 @admin.register(PaketAudio)
-class PaketAudioAdmin(admin.ModelAdmin):
+class PaketAudioAdmin(HanyaBacaMixin, admin.ModelAdmin):
+    """Hanya dilihat (tanpa tombol simpan); pemrosesan ulang lewat aksi "Proses ulang"."""
+
     list_display = ("produk", "status", "ada_kunci", "jumlah_segmen", "durasi_detik", "diproses_pada")
     list_filter = ("status",)
     search_fields = ("produk__buku__judul",)
@@ -51,12 +69,9 @@ class PaketAudioAdmin(admin.ModelAdmin):
         jumlah = sum(1 for paket in queryset.select_related("produk") if antrikan_pengemasan(paket.produk, paksa=True))
         self.message_user(request, f"{jumlah} paket audio diantrekan untuk diproses ulang.")
 
-    def has_add_permission(self, request):
-        return False
-
 
 @admin.register(SalinanEbook)
-class SalinanEbookAdmin(admin.ModelAdmin):
+class SalinanEbookAdmin(HanyaBacaMixin, admin.ModelAdmin):
     list_display = ("kode_watermark", "pembeli", "produk", "status", "siap_pada")
     list_filter = ("status",)
     search_fields = ("kode_watermark", "hak_akses__pembeli__email", "hak_akses__produk__buku__judul")
@@ -70,9 +85,6 @@ class SalinanEbookAdmin(admin.ModelAdmin):
     @admin.display(description="Produk")
     def produk(self, obj):
         return obj.hak_akses.produk
-
-    def has_add_permission(self, request):
-        return False
 
 
 @admin.register(SesiStreaming)

@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uji Pemutar Audiobook</title>
+<style>
+  :root {
+    --latar: #f4f5f7; --kartu: #ffffff; --teks: #1d2433; --redup: #5b6475; --garis: #d9dde5;
+    --utama: #1f5fbf; --utama-teks: #ffffff; --ok: #1b7f3b; --gagal: #b3261e; --kode: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --latar: #14171d; --kartu: #1d2129; --teks: #e6e9ef; --redup: #a3abba; --garis: #333a47;
+      --utama: #5b9cf5; --utama-teks: #0d1117; --ok: #5fcf83; --gagal: #ff8a80; --kode: #262b35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--latar); color: var(--teks); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .catatan { color: var(--redup); margin: 0 0 20px; }
+  section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  form, .baris { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+  label { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: var(--redup); flex: 1 1 180px; }
+  input { font: inherit; padding: 7px 9px; border: 1px solid var(--garis); border-radius: 6px; background: var(--latar); color: var(--teks); }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--utama); background: var(--utama); color: var(--utama-teks); cursor: pointer; }
+  button.kedua { background: transparent; color: var(--utama); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--utama); }
+  details form { margin-top: 8px; }
+  audio { width: 100%; margin-top: 12px; }
+  #status-login, #info-sesi { margin: 10px 0 0; color: var(--redup); }
+  .uji { display: grid; gap: 8px; }
+  .uji button { text-align: left; }
+  pre { background: var(--kode); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: .8rem; margin: 8px 0 0; }
+  #log { list-style: none; margin: 0; padding: 0; font: .82rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; max-height: 420px; overflow-y: auto; }
+  #log li { padding: 5px 8px; border-bottom: 1px solid var(--garis); overflow-wrap: anywhere; }
+  #log li.ok { color: var(--ok); }
+  #log li.gagal { color: var(--gagal); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Uji Pemutar Audiobook (AES-128 HLS)</h1>
+  <p class="catatan">Halaman pengujian Tahap C, hanya tersedia saat DEBUG. Token login disimpan di memori halaman saja; isi kunci AES tidak pernah ditampilkan.</p>
+
+  <section>
+    <h2>1. Akun</h2>
+    <form id="form-login">
+      <label>Email <input id="email" type="email" autocomplete="username" required></label>
+      <label>Kata sandi <input id="sandi" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Login</button>
+      <button type="button" id="tombol-logout" class="kedua" disabled>Logout</button>
+    </form>
+    <details>
+      <summary>Belum punya akun pembeli? Daftar</summary>
+      <form id="form-daftar">
+        <label>Nama lengkap <input id="daftar-nama" required></label>
+        <label>Email <input id="daftar-email" type="email" required></label>
+        <label>Kata sandi <input id="daftar-sandi" type="password" autocomplete="new-password" required></label>
+        <button type="submit">Daftar</button>
+      </form>
+    </details>
+    <p id="status-login">Belum login.</p>
+  </section>
+
+  <section>
+    <h2>2. Putar audiobook</h2>
+    <div class="baris">
+      <label>ID produk audiobook <input id="produk-id" type="number" min="1" required></label>
+      <button type="button" id="tombol-putar" disabled>Mulai sesi dan putar</button>
+    </div>
+    <audio id="pemutar" controls></audio>
+    <p id="info-sesi">Belum ada sesi.</p>
+    <details id="detail-playlist" hidden>
+      <summary>Lihat playlist sesi ini (token dan tanda tangan disamarkan)</summary>
+      <pre id="isi-playlist"></pre>
+    </details>
+  </section>
+
+  <section>
+    <h2>3. Uji keamanan</h2>
+    <p class="catatan">Setiap uji dikirim langsung dari peramban ini. Hasil yang diharapkan tertulis pada tombol; penolakan kunci juga tercatat di Admin → Log akses kunci.</p>
+    <div class="uji">
+      <button type="button" class="kedua" data-uji="tanpa-login">Minta kunci tanpa login → harus 401</button>
+      <button type="button" class="kedua" data-uji="token-acak">Minta kunci dengan token sesi acak → harus 404</button>
+      <button type="button" class="kedua" data-uji="sesi-lama">Buat sesi baru, lalu minta kunci dengan token sesi lama → harus 410</button>
+      <button type="button" class="kedua" data-uji="akun-lain">Minta kunci dengan token sesi milik akun lain → harus 403</button>
+      <button type="button" class="kedua" data-uji="segmen">Unduh segmen langsung dari bucket → harus terenkripsi</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <ol id="log"></ol>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"
+        integrity="sha384-cciJ0zi8d1uMKC2zJd7jvPY4HQt7W4ByUI/FlMkltvBi31aW61rcpVBhpmW8/NwX"
+        crossorigin="anonymous"></script>
+<script>
+"use strict";
+
+const API = `${location.origin}/api`;
+const el = (id) => document.getElementById(id);
+const akun = { akses: null, refresh: null, email: null };
+let hls = null;
+let sesi = null;          // sesi aktif: { playlist, token, produkId, email, teks }
+let sesiAkunLain = null;  // sesi terakhir milik akun sebelumnya, untuk uji 403
+let sudahDiputar = false;
+
+function catat(pesan, jenis = "info") {
+  const li = document.createElement("li");
+  li.className = jenis;
+  li.textContent = `[${new Date().toLocaleTimeString("id-ID")}] ${pesan}`;
+  el("log").prepend(li);
+}
+
+function hasilUji(nama, status, harapan) {
+  const sesuai = status === harapan;
+  catat(`${nama}: HTTP ${status} (diharapkan ${harapan}) ${sesuai ? "✓ sesuai" : "✗ TIDAK sesuai"}`, sesuai ? "ok" : "gagal");
+}
+
+function pesanError(data) {
+  if (!data) return "tanpa keterangan";
+  if (data.detail) return data.detail;
+  return Object.entries(data).map(([kolom, isi]) => `${kolom}: ${[].concat(isi).join(" ")}`).join("; ");
+}
+
+function samarkan(teks) {
+  return teks
+    .replace(/\/stream\/([^/]+)\//g, (_, t) => `/stream/${t.slice(0, 4)}…${t.slice(-4)}/`)
+    .replace(/X-Amz-Signature=[0-9a-f]+/g, "X-Amz-Signature=…")
+    .replace(/X-Amz-Credential=[^&\s]+/g, "X-Amz-Credential=…");
+}
+
+function tokenAcak() {
+  const byte = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...byte)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function urlKunci(token) {
+  return `${API}/drm/stream/${encodeURIComponent(token)}/kunci`;
+}
+
+function kedaluwarsaJwt(jwt) {
+  try {
+    const payload = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.exp * 1000;
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function pastikanAksesSegar() {
+  if (!akun.akses || kedaluwarsaJwt(akun.akses) - Date.now() > 60000) return;
+  const r = await fetch(`${API}/auth/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh: akun.refresh }),
+  });
+  if (r.ok) {
+    const data = await r.json();
+    akun.akses = data.access;
+    akun.refresh = data.refresh || akun.refresh;
+    catat("Access token diperbarui dengan refresh token (refresh token lama di-blacklist).");
+  } else {
+    catat(`Refresh token ditolak (HTTP ${r.status}). Silakan login ulang.`, "gagal");
+    keluarLokal();
+  }
+}
+
+async function api(path, { method = "GET", body, auth = true } = {}) {
+  if (auth) await pastikanAksesSegar();
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (auth && akun.akses) headers.Authorization = `Bearer ${akun.akses}`;
+  const respons = await fetch(path.startsWith("http") ? path : API + path, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const tipe = respons.headers.get("Content-Type") || "";
+  const data = tipe.includes("json") ? await respons.json() : null;
+  return { status: respons.status, data, respons };
+}
+
+function tampilkanAkun() {
+  const masuk = Boolean(akun.akses);
+  el("status-login").textContent = masuk ? `Login sebagai ${akun.email}.` : "Belum login.";
+  el("tombol-logout").disabled = !masuk;
+  el("tombol-putar").disabled = !masuk;
+}
+
+function hentikanPemutar() {
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+  const audio = el("pemutar");
+  audio.removeAttribute("src");
+  audio.load();
+}
+
+function keluarLokal() {
+  hentikanPemutar();
+  if (sesi) sesiAkunLain = sesi;
+  sesi = null;
+  akun.akses = akun.refresh = akun.email = null;
+  el("info-sesi").textContent = "Belum ada sesi.";
+  el("detail-playlist").hidden = true;
+  tampilkanAkun();
+}
+
+el("form-login").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const r = await api("/auth/login/", {
+    method: "POST",
+    auth: false,
+    body: { email: el("email").value, password: el("sandi").value },
+  });
+  if (r.status !== 200) {
+    catat(`Login gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    return;
+  }
+  if (sesi) sesiAkunLain = sesi;
+  hentikanPemutar();
+  sesi = null;
+  akun.akses = r.data.access;
+  akun.refresh = r.data.refresh;
+  akun.email = r.data.pengguna.email;
+  el("sandi").value = "";
+  tampilkanAkun();
+  catat(`Login berhasil sebagai ${akun.email} (peran ${r.data.pengguna.role}).`, "ok");
+});
+
+el("form-daftar").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const r = await api("/auth/registrasi/", {
+    method: "POST",
+    auth: false,
+    body: {
+      nama_lengkap: el("daftar-nama").value,
+      email: el("daftar-email").value,
+      password: el("daftar-sandi").value,
+    },
+  });
+  if (r.status !== 201) {
+    catat(`Registrasi gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    return;
+  }
+  el("daftar-sandi").value = "";
+  el("email").value = r.data.email;
+  catat(`Akun pembeli ${r.data.email} terdaftar. Silakan login.`, "ok");
+});
+
+el("tombol-logout").addEventListener("click", async () => {
+  const r = await api("/auth/logout/", { method: "POST", body: { refresh: akun.refresh } });
+  if (r.status === 204) catat("Logout berhasil; refresh token di-blacklist.", "ok");
+  else catat(`Logout gagal (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+  keluarLokal();
+});
+
+async function buatSesi(produkId) {
+  const r = await api(`/drm/audiobook/${produkId}/sesi/`, { method: "POST" });
+  if (r.status !== 201) {
+    catat(`Sesi streaming ditolak (HTTP ${r.status}): ${pesanError(r.data)}`, "gagal");
+    return null;
+  }
+  const token = r.data.playlist.match(/\/stream\/([^/]+)\//)[1];
+  return { playlist: r.data.playlist, token, produkId, email: akun.email, kedaluwarsa: new Date(r.data.kedaluwarsa) };
+}
+
+function mulaiPemutar(url) {
+  hls = new Hls({
+    // Header Authorization hanya untuk URL API (playlist dan kunci). Presigned URL segmen
+    // tidak boleh diberi header ini karena tanda tangan S3 akan ditolak.
+    xhrSetup(xhr, urlPermintaan) {
+      if (urlPermintaan.startsWith(`${API}/`)) {
+        xhr.open("GET", urlPermintaan, true);
+        xhr.setRequestHeader("Authorization", `Bearer ${akun.akses}`);
+      }
+    },
+  });
+  const instans = hls;
+  hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    el("pemutar").play().catch(() => {
+      if (hls === instans) catat("Klik tombol play pada pemutar untuk mulai mendengarkan.");
+    });
+  });
+  hls.on(Hls.Events.KEY_LOADED, () => {
+    catat("Kunci AES-128 diterima dari endpoint kunci sesi (isi kunci tidak ditampilkan).", "ok");
+  });
+  hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+    if (data.frag.sn < 3) {
+      catat(`Segmen ${data.frag.sn} diunduh dari bucket lewat presigned URL (${data.frag.stats.loaded} byte, masih terenkripsi).`);
+    }
+  });
+  // hls.js mendekripsi segmen sebelum membaca isinya; codec audio hanya bisa dikenali bila
+  // dekripsi dengan kunci dan IV yang benar menghasilkan MPEG-TS yang sah.
+  hls.on(Hls.Events.BUFFER_CODECS, (_, data) => {
+    const trek = data.audio || data.audiovideo;
+    catat(`Segmen berhasil didekripsi AES-128 di peramban dan dikenali sebagai audio ${trek && trek.codec ? trek.codec : "AAC"}.`, "ok");
+  });
+  hls.on(Hls.Events.ERROR, (_, data) => {
+    const kode = (data.response && data.response.code) || (data.networkDetails && data.networkDetails.status);
+    catat(`hls.js: ${data.details}${kode ? ` (HTTP ${kode})` : ""}${data.fatal ? ", fatal" : ""}`, data.fatal ? "gagal" : "info");
+    if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR && !kode) {
+      catat(`Segmen kemungkinan diblokir CORS. Pastikan origin ${location.origin} terdaftar di CORS_ALLOWED_ORIGINS atau CSRF_TRUSTED_ORIGINS, lalu jalankan ulang init_storage.`, "gagal");
+    }
+    if (data.fatal) {
+      // Dihentikan setelah hls.js selesai memproses kejadian ini, bukan di tengah-tengahnya.
+      setTimeout(hentikanPemutar, 0);
+      catat("Pemutaran berhenti. Klik \"Mulai sesi dan putar\" untuk membuat sesi baru.", "gagal");
+    }
+  });
+  sudahDiputar = false;
+  hls.loadSource(url);
+  hls.attachMedia(el("pemutar"));
+}
+
+el("tombol-putar").addEventListener("click", async () => {
+  const produkId = parseInt(el("produk-id").value, 10);
+  if (!produkId) {
+    catat("Isi ID produk audiobook terlebih dahulu.", "gagal");
+    return;
+  }
+  if (!window.Hls || !Hls.isSupported()) {
+    catat("Peramban ini tidak mendukung hls.js (Media Source Extensions). Gunakan Chrome, Edge, atau Firefox terbaru.", "gagal");
+    return;
+  }
+  hentikanPemutar();
+  const baru = await buatSesi(produkId);
+  if (!baru) return;
+  sesi = baru;
+  el("info-sesi").textContent = `Sesi berlaku sampai pukul ${sesi.kedaluwarsa.toLocaleTimeString("id-ID")}.`;
+  catat(`Sesi streaming dibuat: ${samarkan(sesi.playlist)}`, "ok");
+
+  // Playlist diambil sekali di sini untuk ditampilkan; hls.js lalu memintanya lagi sendiri.
+  await pastikanAksesSegar();
+  const r = await fetch(sesi.playlist, { headers: { Authorization: `Bearer ${akun.akses}` } });
+  if (r.status !== 200) {
+    catat(`Playlist ditolak (HTTP ${r.status}).`, "gagal");
+    return;
+  }
+  sesi.teks = await r.text();
+  const segmen = sesi.teks.split("\n").filter((baris) => baris && !baris.startsWith("#"));
+  el("isi-playlist").textContent = samarkan(sesi.teks.split("\n").slice(0, 12).join("\n")) + (segmen.length > 3 ? "\n…" : "");
+  el("detail-playlist").hidden = false;
+  catat(`Playlist diterima: ${segmen.length} segmen. URI kunci menunjuk endpoint kunci sesi; segmen berupa presigned URL bucket.`);
+  mulaiPemutar(sesi.playlist);
+});
+
+// Audio hanya bisa berbunyi bila segmen berhasil didekripsi dan dibaca; dicatat sekali per sesi.
+el("pemutar").addEventListener("playing", () => {
+  if (!sudahDiputar && hls) {
+    sudahDiputar = true;
+    catat("Audio sedang diputar dari segmen yang didekripsi di peramban.", "ok");
+  }
+});
+
+const daftarUji = {
+  async "tanpa-login"() {
+    const token = sesi ? sesi.token : tokenAcak();
+    const r = await fetch(urlKunci(token));
+    hasilUji("Kunci tanpa login", r.status, 401);
+  },
+  async "token-acak"() {
+    if (!akun.akses) return catat("Login terlebih dahulu.", "gagal");
+    const r = await api(urlKunci(tokenAcak()));
+    hasilUji("Kunci dengan token acak", r.status, 404);
+  },
+  async "sesi-lama"() {
+    if (!sesi) return catat("Putar audiobook terlebih dahulu agar ada sesi yang bisa diuji.", "gagal");
+    const lama = sesi;
+    const baru = await buatSesi(lama.produkId);
+    if (!baru) return;
+    sesi = { ...baru, teks: lama.teks };
+    catat("Sesi baru dibuat; sesi lama otomatis dicabut (satu sesi aktif per pembeli per audiobook).");
+    const r = await api(urlKunci(lama.token));
+    hasilUji("Kunci dengan token sesi lama", r.status, 410);
+    catat("Pemutar tetap memakai kunci yang sudah diterima sebelumnya; klik \"Mulai sesi dan putar\" untuk memuat ulang dengan sesi baru.");
+  },
+  async "akun-lain"() {
+    if (!akun.akses) return catat("Login terlebih dahulu.", "gagal");
+    if (!sesiAkunLain || sesiAkunLain.email === akun.email) {
+      return catat("Langkah uji: putar audiobook dengan akun A, lalu login sebagai akun B (tanpa memuat ulang halaman), kemudian klik tombol ini.", "gagal");
+    }
+    const r = await api(urlKunci(sesiAkunLain.token));
+    hasilUji(`Kunci dengan token sesi milik ${sesiAkunLain.email}`, r.status, 403);
+  },
+  async segmen() {
+    if (!sesi || !sesi.teks) return catat("Putar audiobook terlebih dahulu agar ada playlist yang bisa diuji.", "gagal");
+    const url = sesi.teks.split("\n").find((baris) => baris && !baris.startsWith("#"));
+    const r = await fetch(url);
+    if (!r.ok) return catat(`Segmen tidak bisa diunduh (HTTP ${r.status}); presigned URL mungkin sudah kedaluwarsa.`, "gagal");
+    const isi = new Uint8Array(await r.arrayBuffer());
+    const awal = Array.from(isi.slice(0, 8), (b) => b.toString(16).padStart(2, "0")).join(" ");
+    const sinkron = [0, 188, 376].filter((i) => i < isi.length && isi[i] === 0x47).length;
+    catat(`Segmen pertama diunduh langsung dari bucket: ${isi.length} byte, 8 byte awal ${awal}.`);
+    if (sinkron === 0) {
+      catat("Byte sinkron MPEG-TS (0x47) tidak ditemukan: isi segmen terenkripsi dan tidak bisa diputar tanpa kunci ✓ sesuai", "ok");
+    } else {
+      catat(`Byte sinkron MPEG-TS ditemukan di ${sinkron} posisi: segmen TIDAK terenkripsi ✗`, "gagal");
+    }
+  },
+};
+
+document.querySelectorAll("[data-uji]").forEach((tombol) => {
+  tombol.addEventListener("click", async () => {
+    tombol.disabled = true;
+    try {
+      await daftarUji[tombol.dataset.uji]();
+    } catch (e) {
+      catat(`Uji gagal dijalankan: ${e.message}`, "gagal");
+    } finally {
+      tombol.disabled = false;
+    }
+  });
+});
+
+const produkAwal = new URLSearchParams(location.search).get("produk");
+if (produkAwal) el("produk-id").value = produkAwal;
+if (!window.Hls) catat("hls.js gagal dimuat dari CDN jsDelivr. Periksa koneksi internet.", "gagal");
+tampilkanAkun();
+</script>
+</body>
+</html>
