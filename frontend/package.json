@@ -1,0 +1,27 @@
+{
+  "name": "polibatam-press-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Frontend Vue untuk Marketplace Buku Digital Polibatam Press",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "dependencies": {
+    "@fontsource/montserrat": "5.3.0",
+    "@fontsource/open-sans": "5.3.0",
+    "@lucide/vue": "1.55.0",
+    "pinia": "3.0.4",
+    "vue": "3.5.43",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.9",
+    "vite": "7.3.7"
+  }
+}

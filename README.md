@@ -41,6 +41,20 @@ Bila `S3_HOST_PORT` diubah, sesuaikan juga `S3_PUBLIC_ENDPOINT_URL`.
 
 Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume).
 
+## Frontend (Vue)
+
+Frontend dijalankan di laptop (bukan di Docker), sementara backend tetap di Docker. Prasyarat: Node.js 20.19+ atau 22.12+ (diuji dengan Node 24) dan backend dari langkah di atas sudah berjalan.
+
+```bash
+cd frontend
+npm install        # sekali, dan setiap package.json berubah
+npm run dev        # buka http://localhost:5173
+```
+
+Vite meneruskan `/api/...` ke Nginx di `http://127.0.0.1:8080`, sehingga peramban hanya berhubungan dengan satu origin dan API tidak memerlukan CORS. Bila `NGINX_HOST_PORT` diubah, buat `frontend/.env.local` berisi `VITE_BACKEND=http://127.0.0.1:<port>`. `npm run build` menghasilkan `frontend/dist/`.
+
+Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Keranjang, pesanan, koleksi, pengajuan ISBN, dan notifikasi masih halaman sementara sampai Tahap H2–H4 (lencana jumlah keranjang dan notifikasi di header sudah aktif).
+
 ## Uji konten digital (hanya saat `DJANGO_DEBUG=True`)
 
 1. Tambahkan buku beserta produk Audiobook (MP3) dan/atau Ebook (PDF) di http://localhost:8080/admin/. Untuk audiobook, tunggu status DRM "Siap diputar".

@@ -1,0 +1,39 @@
+/*
+ * Token desain. Warna utama dari Buku Panduan Logo dan Brand Polibatam 2023 (hlm. 37–38):
+ * biru tua #1e376c, biru muda #57c9e8, jingga #f2692a.
+ * Kontras (WCAG 2.1): putih di atas biru tua 11,5:1; teks gelap di atas jingga 5,4:1; biru tua di atas
+ * biru muda 6,0:1. Putih di atas jingga hanya 3,1:1, jadi jingga dipakai untuk aksen (garis menu aktif,
+ * lencana bertulisan gelap, ornamen), bukan latar teks putih.
+ */
+:root {
+  --navy: #1e376c;
+  --navy-900: #14264d;
+  --navy-100: #dbe2ef;
+  --navy-50: #eef1f7;
+  --biru: #57c9e8;
+  --biru-50: #e8f7fc;
+  --jingga: #f2692a;
+  --jingga-50: #fef0e9;
+
+  --teks: #1a1f2b;
+  --teks-redup: #4a5161;
+  --garis: #cfd5e1;
+  --garis-lembut: #e3e7ef;
+  --garis-isian: #8a93a6;
+  --latar: #f5f7fa;
+  --permukaan: #ffffff;
+
+  --galat: #b42318;
+  --galat-50: #fef3f2;
+  --sukses: #067647;
+  --sukses-50: #ecfdf3;
+
+  --font-judul: 'Montserrat', system-ui, sans-serif;
+  --font-isi: 'Open Sans', system-ui, sans-serif;
+
+  --radius-kecil: 8px;
+  --radius: 10px;
+  --radius-besar: 12px;
+  --bayangan: 0 8px 24px rgba(20, 38, 77, 0.14);
+  --lebar-wadah: 1200px;
+}
