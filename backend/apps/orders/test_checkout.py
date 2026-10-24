@@ -11,7 +11,8 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.catalog.models import Produk
-from core.testing import STORAGES_MEMORI
+from apps.catalog.testing import buat_buku, buat_produk
+from core.testing import STORAGES_MEMORI, berkas_uji
 
 from . import checkout as modul_checkout
 from . import midtrans
@@ -296,6 +297,7 @@ class RiwayatPesananTests(CheckoutTestCase):
         detail = self.client.get(reverse("pesanan-detail", args=[nomor])).data
         self.assertEqual([i["format"] for i in detail["item"]], ["cetak", "ebook"])
         self.assertEqual(detail["item"][0]["subtotal"], 150000)
+        self.assertEqual(detail["item"][0]["buku"], {"slug": self.cetak.buku.slug, "sampul": None})
         self.assertIsNotNone(detail["pembayaran"])
 
     def test_data_pembayaran_tidak_tampil_setelah_batas_bayar(self):
@@ -313,3 +315,18 @@ class RiwayatPesananTests(CheckoutTestCase):
         self.checkout()
         with self.assertNumQueries(4):  # pengguna (JWT), jumlah pesanan, halaman pesanan, item pesanan
             self.assertEqual(self.client.get(reverse("pesanan")).data["count"], 3)
+
+    def test_detail_memuat_sampul_tanpa_kueri_berulang_per_item(self):
+        buku_lain = buat_buku("Jaringan Komputer", sampul=berkas_uji("sampul.jpg"))
+        ebook_lain = buat_produk(buku_lain, Produk.Format.EBOOK, 30000)
+        self.tambah(self.cetak)
+        self.tambah(self.ebook)
+        self.tambah(ebook_lain)
+        nomor = self.checkout(**DELIVERY).data["nomor"]
+        # pengguna (JWT), pesanan, item, produk, buku — tetap 5 berapa pun jumlah itemnya.
+        with self.assertNumQueries(5):
+            detail = self.client.get(reverse("pesanan-detail", args=[nomor])).data
+        buku = [i["buku"] for i in detail["item"]]
+        self.assertEqual([b["slug"] for b in buku], [self.cetak.buku.slug, self.cetak.buku.slug, buku_lain.slug])
+        self.assertIsNone(buku[0]["sampul"])
+        self.assertIn("X-Amz-Expires=3600", buku[2]["sampul"])  # presigned URL sampul seperti di katalog

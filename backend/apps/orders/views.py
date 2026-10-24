@@ -79,7 +79,7 @@ class ItemKeranjangView(APIView):
 
 
 def pesanan_milik(pembeli, nomor):
-    pesanan = Pesanan.objects.filter(pembeli=pembeli, nomor=nomor).prefetch_related("item").first()
+    pesanan = Pesanan.objects.filter(pembeli=pembeli, nomor=nomor).prefetch_related("item__produk__buku").first()
     if pesanan is None:
         raise NotFound("Pesanan tidak ditemukan.")
     return pesanan

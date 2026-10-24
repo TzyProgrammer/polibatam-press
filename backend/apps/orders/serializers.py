@@ -114,13 +114,20 @@ class CheckoutSerializer(serializers.Serializer):
 
 
 class ItemPesananSerializer(serializers.ModelSerializer):
+    """`judul` adalah salinan saat checkout; `buku` (slug dan sampul) data buku saat ini untuk tautan dan gambar."""
+
     produk_id = serializers.IntegerField()
     format_label = serializers.CharField(source="get_format_display")
     subtotal = serializers.IntegerField()
+    buku = serializers.SerializerMethodField()
 
     class Meta:
         model = ItemPesanan
-        fields = ["produk_id", "judul", "format", "format_label", "harga_satuan", "jumlah", "subtotal"]
+        fields = ["produk_id", "judul", "format", "format_label", "harga_satuan", "jumlah", "subtotal", "buku"]
+
+    def get_buku(self, item):
+        buku = item.produk.buku
+        return {"slug": buku.slug, "sampul": url_sampul(buku)}
 
 
 class PesananRingkasSerializer(serializers.ModelSerializer):

@@ -53,7 +53,7 @@ npm run dev        # buka http://localhost:5173
 
 Vite meneruskan `/api/...` ke Nginx di `http://127.0.0.1:8080`, sehingga peramban hanya berhubungan dengan satu origin dan API tidak memerlukan CORS. Bila `NGINX_HOST_PORT` diubah, buat `frontend/.env.local` berisi `VITE_BACKEND=http://127.0.0.1:<port>`. `npm run build` menghasilkan `frontend/dist/`.
 
-Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Keranjang, pesanan, koleksi, pengajuan ISBN, dan notifikasi masih halaman sementara sampai Tahap H2–H4 (lencana jumlah keranjang dan notifikasi di header sudah aktif).
+Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Tahap H2 menambah keranjang, checkout, pembayaran QRIS (Snap), riwayat pesanan, dan detail pesanan. Koleksi, pengajuan ISBN, dan notifikasi masih halaman sementara sampai Tahap H3–H4 (lencana notifikasi di header sudah aktif).
 
 ## Uji konten digital (hanya saat `DJANGO_DEBUG=True`)
 
@@ -80,9 +80,9 @@ Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Ker
    docker compose exec django python manage.py check     # tidak ada peringatan orders.W001/W002
    ```
 
-3. Di halaman uji (bagian 5–6): masukkan produk ke keranjang, isi pengiriman bila ada buku cetak (delivery: alamat + kecamatan di Kota Batam; takeaway: diambil di Gedung TA Kampus Polibatam, Lantai 1, Kantor Polibatam Store), lalu "Checkout dan bayar".
+3. Lewat frontend (http://localhost:5173, Tahap H2): masukkan produk ke keranjang → Lanjut ke checkout → pilih pengiriman bila ada buku cetak (delivery: alamat + kecamatan di Kota Batam; takeaway: diambil di Gedung TA Kampus Polibatam, Lantai 1, Kantor Polibatam Store) → "Buat pesanan dan bayar". Jendela Snap terbuka otomatis di halaman pembayaran. Halaman uji (bagian 5–6, "Checkout dan bayar") tetap bisa dipakai.
 4. Di popup Snap pilih QRIS, salin URL gambar QR, lalu bayar di QRIS Simulator https://simulator.sandbox.midtrans.com/v2/qris/index. Jangan membayar dengan aplikasi bank atau e-wallet sungguhan.
-5. Bagian 7: "Cek status" membaca status dari Midtrans; setelah lunas, ebook dan audiobook muncul di koleksi. Pesanan yang tidak dibayar sampai batas waktu (bawaan 60 menit) ditutup otomatis oleh `celery-beat` dan stok buku cetaknya kembali.
+5. Halaman pembayaran memeriksa status ke Midtrans tiap 15 detik selama tab terlihat; tombol "Cek status pembayaran" memeriksanya saat itu juga (di halaman uji: bagian 7, "Cek status"). Setelah lunas, halaman pindah ke detail pesanan, dan ebook serta audiobook masuk ke koleksi. Pesanan yang tidak dibayar sampai batas waktu (bawaan 60 menit) ditutup otomatis oleh `celery-beat` dan stok buku cetaknya kembali.
 6. Admin → Orders → Pesanan: ubah status pengiriman (delivery: diproses → dikirim → selesai; takeaway: diproses → siap diambil → selesai). Semua notifikasi Midtrans tercatat di Log notifikasi Midtrans.
 7. Opsional, notifikasi otomatis (webhook): buat tunnel publik ke `http://localhost:8080` (misalnya cloudflared atau ngrok), tambahkan domain tunnel ke `DJANGO_ALLOWED_HOSTS`, lalu isi Payment Notification URL di dashboard sandbox dengan `https://<domain-tunnel>/api/pembayaran/midtrans/notifikasi/`. Tanpa tunnel, status tetap diperbarui lewat "Cek status" dan pemeriksaan berkala.
 

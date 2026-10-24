@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { BookOpen, FileText, Headphones, Minus, Plus, ShoppingCart } from '@lucide/vue'
+import { BookOpen, FileText, Headphones, ShoppingCart } from '@lucide/vue'
 
 import { api } from '../api/klien'
 import KotakPesan from '../components/KotakPesan.vue'
+import PenghitungJumlah from '../components/PenghitungJumlah.vue'
 import SampulBuku from '../components/SampulBuku.vue'
 import { useAuthStore } from '../stores/auth'
 import { useKeranjangStore } from '../stores/keranjang'
@@ -69,11 +70,6 @@ watch(pilihan, () => {
 
 function keterangan(p) {
   return p.tersedia ? KETERANGAN[p.format]?.(p) : `${p.keterangan} · belum bisa dibeli`
-}
-
-function aturJumlah(nilai) {
-  const angka = Number.parseInt(nilai, 10)
-  jumlah.value = Math.min(maksJumlah.value, Math.max(1, Number.isNaN(angka) ? 1 : angka))
 }
 
 const info = computed(() => {
@@ -172,24 +168,8 @@ async function tambah() {
           </fieldset>
 
           <div v-if="cetak" class="jumlah">
-            <span id="label-jumlah" class="jumlah__label">Jumlah</span>
-            <div class="penghitung" role="group" aria-labelledby="label-jumlah">
-              <button type="button" aria-label="Kurangi jumlah" :disabled="jumlah <= 1" @click="aturJumlah(jumlah - 1)">
-                <Minus :size="18" />
-              </button>
-              <input
-                :value="jumlah"
-                type="number"
-                min="1"
-                :max="maksJumlah"
-                inputmode="numeric"
-                aria-label="Jumlah buku cetak"
-                @change="aturJumlah($event.target.value)"
-              >
-              <button type="button" aria-label="Tambah jumlah" :disabled="jumlah >= maksJumlah" @click="aturJumlah(jumlah + 1)">
-                <Plus :size="18" />
-              </button>
-            </div>
+            <span class="jumlah__label" aria-hidden="true">Jumlah</span>
+            <PenghitungJumlah v-model="jumlah" :max="maksJumlah" label="Jumlah buku cetak" />
             <span class="jumlah__ket">Maksimal {{ maksJumlah }} buku</span>
           </div>
 
@@ -415,47 +395,6 @@ async function tambah() {
 .jumlah__ket {
   color: var(--teks-redup);
   font-size: 0.8125rem;
-}
-
-.penghitung {
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid var(--garis-isian);
-  border-radius: var(--radius-kecil);
-  background: var(--permukaan);
-}
-
-.penghitung button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  background: transparent;
-  color: var(--navy);
-  cursor: pointer;
-}
-
-.penghitung button:disabled {
-  color: var(--garis-isian);
-  cursor: not-allowed;
-}
-
-.penghitung input {
-  width: 56px;
-  height: 44px;
-  border: 0;
-  border-inline: 1px solid var(--garis);
-  text-align: center;
-  -moz-appearance: textfield;
-}
-
-.penghitung input::-webkit-inner-spin-button,
-.penghitung input::-webkit-outer-spin-button {
-  margin: 0;
-  -webkit-appearance: none;
 }
 
 .detail__catatan {

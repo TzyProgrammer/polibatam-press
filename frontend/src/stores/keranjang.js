@@ -2,30 +2,50 @@ import { defineStore } from 'pinia'
 
 import { api } from '../api/klien'
 
-// Tahap H1 hanya memakai jumlah item (lencana di header) dan tambah item dari halaman detail buku.
-// Isi keranjang lengkap ditampilkan di Tahap H2.
+// Isi keranjang dari API. Setiap perubahan (tambah, ubah jumlah, hapus) dijawab backend dengan isi keranjang
+// terbaru, jadi data di sini selalu mengikuti server: stok dan ketersediaan bisa berubah sejak item ditambahkan.
+// isi: {item: [...], jumlah_item, total, perlu_pengiriman, semua_tersedia}
 export const useKeranjangStore = defineStore('keranjang', {
   state: () => ({
+    isi: null,
     jumlahItem: 0,
   }),
 
   actions: {
+    simpan(data) {
+      this.isi = data
+      this.jumlahItem = data?.jumlah_item ?? 0
+      return data
+    },
+
+    // Untuk halaman: melempar GalatApi bila gagal.
+    async ambil() {
+      return this.simpan(await api.get('/keranjang/'))
+    },
+
+    // Untuk lencana di header: kegagalan diabaikan, angka terakhir dibiarkan.
     async muat() {
       try {
-        const data = await api.get('/keranjang/')
-        this.jumlahItem = data.jumlah_item
+        await this.ambil()
       } catch {
-        // Lencana tidak penting: biarkan angka terakhir.
+        // Lencana tidak penting.
       }
     },
 
     async tambah(produkId, jumlah = 1) {
-      const data = await api.post('/keranjang/item/', { produk_id: produkId, jumlah })
-      this.jumlahItem = data.jumlah_item
-      return data
+      return this.simpan(await api.post('/keranjang/item/', { produk_id: produkId, jumlah }))
+    },
+
+    async ubahJumlah(itemId, jumlah) {
+      return this.simpan(await api.patch(`/keranjang/item/${itemId}/`, { jumlah }))
+    },
+
+    async hapus(itemId) {
+      return this.simpan(await api.hapus(`/keranjang/item/${itemId}/`))
     },
 
     kosongkan() {
+      this.isi = null
       this.jumlahItem = 0
     },
   },
