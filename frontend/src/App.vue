@@ -1,6 +1,6 @@
 <script setup>
-import { watch } from 'vue'
-import { RouterView } from 'vue-router'
+import { computed, watch } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
 
 import DaftarPesan from './components/DaftarPesan.vue'
 import SiteFooter from './components/SiteFooter.vue'
@@ -12,6 +12,10 @@ import { useNotifikasiStore } from './stores/notifikasi'
 const auth = useAuthStore()
 const keranjang = useKeranjangStore()
 const notifikasi = useNotifikasiStore()
+const route = useRoute()
+
+// Halaman layar penuh (pembaca ebook) memakai bilah sendiri, tanpa header dan footer situs.
+const tanpaKerangka = computed(() => Boolean(route.meta.tanpaKerangka))
 
 // Lencana keranjang dan notifikasi hanya dimuat selama pengguna masuk.
 watch(
@@ -31,10 +35,10 @@ watch(
 
 <template>
   <a href="#konten" class="lewati">Lewati ke konten utama</a>
-  <SiteHeader />
+  <SiteHeader v-if="!tanpaKerangka" />
   <main id="konten" class="konten" tabindex="-1">
     <RouterView />
   </main>
-  <SiteFooter />
+  <SiteFooter v-if="!tanpaKerangka" />
   <DaftarPesan />
 </template>

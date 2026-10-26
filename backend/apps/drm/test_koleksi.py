@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
+from apps.catalog.models import Buku
 from apps.notifications.models import Notifikasi
 from apps.orders.models import ItemPesanan, Pesanan
 from apps.orders.testing import buat_pembeli, buat_produk_uji
@@ -41,17 +42,22 @@ class KoleksiTests(KoleksiTestCase):
         return {k["format"]: k for k in response.data}
 
     def test_koleksi_berisi_produk_digital_milik_pembeli(self):
+        Buku.objects.filter(pk=self.ebook.buku_id).update(jumlah_halaman=120)
+        PaketAudio.objects.filter(produk=self.audio).update(durasi_detik=3725)
         koleksi = self.koleksi()
         self.assertEqual(set(koleksi), {"ebook", "audiobook"})  # buku cetak tidak masuk koleksi
         ebook = koleksi["ebook"]
         self.assertEqual(ebook["produk_id"], self.ebook.pk)
         self.assertEqual(ebook["buku"]["judul"], "Keamanan Data Modern")
+        self.assertEqual(ebook["buku"]["jumlah_halaman"], 120)
+        self.assertIsNone(ebook["durasi_detik"])
         self.assertEqual((ebook["status"], ebook["keterangan"]), ("menunggu", "Menunggu diproses"))
         self.assertEqual(ebook["url_akses"], f"/api/drm/ebook/{self.ebook.pk}/")
         self.assertEqual(ebook["nomor_pesanan"], self.pesanan.nomor)
         audio = koleksi["audiobook"]
         self.assertEqual((audio["status"], audio["keterangan"]), ("siap", "Siap diputar"))
         self.assertEqual(audio["url_akses"], f"/api/drm/audiobook/{self.audio.pk}/sesi/")
+        self.assertEqual(audio["durasi_detik"], 3725)
         self.assertTrue(audio["aktif"])
 
         SalinanEbook.objects.update(status=SalinanEbook.Status.SIAP)
@@ -66,6 +72,7 @@ class KoleksiTests(KoleksiTestCase):
             (False, "dicabut", "Akses dinonaktifkan admin"),
         )
         self.assertEqual(koleksi["audiobook"]["status"], "diproses")
+        self.assertIsNone(koleksi["audiobook"]["durasi_detik"])  # durasi hanya untuk paket yang siap
 
     def test_hanya_milik_sendiri_dan_perlu_login(self):
         lain = buat_pembeli("lain@example.com")

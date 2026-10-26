@@ -43,6 +43,41 @@ export function formatSisaWaktu(detik) {
   return jam ? `${jam}:${dua(menit)}:${dua(sisa)}` : `${dua(menit)}:${dua(sisa)}`
 }
 
+// Durasi audiobook: "1 jam 5 menit", "45 menit", "40 detik".
+export function formatDurasi(detik) {
+  const total = Math.max(0, Math.round(Number(detik) || 0))
+  const jam = Math.floor(total / 3600)
+  const menit = Math.floor((total % 3600) / 60)
+  if (!jam && !menit) return `${total} detik`
+  return [jam && `${jam} jam`, menit && `${menit} menit`].filter(Boolean).join(' ')
+}
+
+const RELATIF = new Intl.RelativeTimeFormat('id-ID', { numeric: 'auto' })
+
+// Waktu notifikasi: "baru saja", "5 menit yang lalu", "kemarin", lalu tanggal setelah seminggu.
+// Satuan dipilih dari nilai yang sudah dibulatkan, agar tidak muncul "60 menit" atau "24 jam". Waktu yang
+// sedikit di depan jam perangkat (jam perangkat terlambat dibanding server) juga dianggap "baru saja".
+export function formatWaktuRelatif(iso, sekarang = Date.now()) {
+  const tanggal = tanggalSah(iso)
+  if (!tanggal) return ''
+  const detikLalu = (sekarang - tanggal.getTime()) / 1000
+  if (detikLalu < 45) return 'baru saja'
+  const menit = Math.round(detikLalu / 60)
+  if (menit < 60) return RELATIF.format(-menit, 'minute')
+  const jam = Math.round(detikLalu / 3600)
+  if (jam < 24) return RELATIF.format(-jam, 'hour')
+  const hari = Math.round(detikLalu / 86400)
+  if (hari < 7) return RELATIF.format(-hari, 'day')
+  return formatTanggal(iso)
+}
+
+// Ukuran berkas unggahan: "820 KB", "2,4 MB".
+export function formatUkuranBerkas(byte) {
+  const angka = Number(byte) || 0
+  if (angka < 1024 * 1024) return `${Math.max(1, Math.round(angka / 1024))} KB`
+  return `${(angka / (1024 * 1024)).toLocaleString('id-ID', { maximumFractionDigits: 1 })} MB`
+}
+
 // Kolom midtrans_payment_type: diisi dari Status API Midtrans setelah pembeli memilih metode di Snap.
 const METODE_BAYAR = { qris: 'QRIS', other_qris: 'QRIS', gopay: 'GoPay', 'uji-lokal': 'Uji lokal (tanpa Midtrans)' }
 

@@ -27,6 +27,17 @@ function simpanRefresh(token) {
 let janjiSiap = null
 let janjiSegar = null
 
+// Waktu kedaluwarsa (detik Unix) dari isi JWT. Hanya dibaca untuk menjadwalkan refresh, bukan diverifikasi:
+// keabsahan token tetap diperiksa backend.
+function kedaluwarsaJwt(token) {
+  try {
+    const isi = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(isi)).exp || 0
+  } catch {
+    return 0
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     pengguna: null,
@@ -78,6 +89,13 @@ export const useAuthStore = defineStore('auth', {
         })()
       }
       return janjiSegar
+    },
+
+    // Access token yang masih berlaku minimal `sisaDetik` lagi, untuk permintaan di luar klien API
+    // (misalnya playlist dan kunci audiobook yang diminta hls.js). Disegarkan dulu bila hampir habis.
+    async aksesSegar(sisaDetik = 30) {
+      if (this.akses && kedaluwarsaJwt(this.akses) - Date.now() / 1000 > sisaDetik) return this.akses
+      return (await this.segarkanAkses()) ? this.akses : null
     },
 
     async masukDengan(email, password) {

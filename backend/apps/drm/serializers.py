@@ -4,7 +4,7 @@ from rest_framework import serializers
 from apps.catalog.models import Produk
 from apps.catalog.serializers import url_sampul
 
-from .models import HakAkses
+from .models import HakAkses, PaketAudio
 
 
 def status_konten(hak):
@@ -35,6 +35,7 @@ class KoleksiSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     keterangan = serializers.SerializerMethodField()
     url_akses = serializers.SerializerMethodField()
+    durasi_detik = serializers.SerializerMethodField()
     nomor_pesanan = serializers.CharField(source="item_pesanan.pesanan.nomor")
     diperoleh = serializers.DateTimeField(source="diberikan")
 
@@ -49,19 +50,33 @@ class KoleksiSerializer(serializers.ModelSerializer):
             "status",
             "keterangan",
             "url_akses",
+            "durasi_detik",
             "nomor_pesanan",
             "diperoleh",
         ]
 
     def get_buku(self, hak):
         buku = hak.produk.buku
-        return {"judul": buku.judul, "slug": buku.slug, "penulis": buku.penulis, "sampul": url_sampul(buku)}
+        return {
+            "judul": buku.judul,
+            "slug": buku.slug,
+            "penulis": buku.penulis,
+            "sampul": url_sampul(buku),
+            "jumlah_halaman": buku.jumlah_halaman,
+        }
 
     def get_status(self, hak):
         return status_konten(hak)[0]
 
     def get_keterangan(self, hak):
         return status_konten(hak)[1]
+
+    def get_durasi_detik(self, hak):
+        """Durasi audiobook dalam detik bila paketnya siap; None untuk ebook atau paket yang belum siap."""
+        paket = getattr(hak.produk, "paket_audio", None)
+        if hak.produk.format != Produk.Format.AUDIOBOOK or paket is None or paket.status != PaketAudio.Status.SIAP:
+            return None
+        return paket.durasi_detik
 
     def get_url_akses(self, hak):
         if hak.produk.format == Produk.Format.EBOOK:

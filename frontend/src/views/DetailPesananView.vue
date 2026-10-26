@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { BookOpen, Check, QrCode, RefreshCw } from '@lucide/vue'
+import { BookOpen, Check, Headphones, QrCode, RefreshCw } from '@lucide/vue'
 
 import { api } from '../api/klien'
 import KotakPesan from '../components/KotakPesan.vue'
@@ -239,9 +239,16 @@ function keteranganItem(i) {
                   </RouterLink>
                   <span v-else class="isi__judul">{{ i.judul }}</span>
                   <span class="isi__ket">{{ keteranganItem(i) }}</span>
-                  <RouterLink v-if="lunas && i.format !== 'cetak'" :to="{ name: 'koleksi' }" class="isi__koleksi">
-                    <BookOpen :size="16" aria-hidden="true" />
-                    Buka di Koleksi
+                  <RouterLink
+                    v-if="lunas && i.format !== 'cetak'"
+                    :to="{
+                      name: i.format === 'ebook' ? 'baca-ebook' : 'putar-audiobook',
+                      params: { produkId: i.produk_id },
+                    }"
+                    class="isi__koleksi"
+                  >
+                    <component :is="i.format === 'ebook' ? BookOpen : Headphones" :size="16" aria-hidden="true" />
+                    {{ i.format === 'ebook' ? 'Baca ebook' : 'Putar audiobook' }}
                   </RouterLink>
                 </div>
                 <span class="isi__harga">{{ formatRupiah(i.subtotal) }}</span>

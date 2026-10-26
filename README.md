@@ -43,7 +43,7 @@ Menghentikan: `docker compose down` (tambahkan `-v` untuk menghapus data volume)
 
 ## Frontend (Vue)
 
-Frontend dijalankan di laptop (bukan di Docker), sementara backend tetap di Docker. Prasyarat: Node.js 20.19+ atau 22.12+ (diuji dengan Node 24) dan backend dari langkah di atas sudah berjalan.
+Frontend dijalankan di laptop (bukan di Docker), sementara backend tetap di Docker. Prasyarat: Node.js 22.13+ (diuji dengan Node 24; pdfjs-dist memerlukan minimal 22.13) dan backend dari langkah di atas sudah berjalan.
 
 ```bash
 cd frontend
@@ -53,7 +53,9 @@ npm run dev        # buka http://localhost:5173
 
 Vite meneruskan `/api/...` ke Nginx di `http://127.0.0.1:8080`, sehingga peramban hanya berhubungan dengan satu origin dan API tidak memerlukan CORS. Bila `NGINX_HOST_PORT` diubah, buat `frontend/.env.local` berisi `VITE_BACKEND=http://127.0.0.1:<port>`. `npm run build` menghasilkan `frontend/dist/`.
 
-Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Tahap H2 menambah keranjang, checkout, pembayaran QRIS (Snap), riwayat pesanan, dan detail pesanan. Koleksi, pengajuan ISBN, dan notifikasi masih halaman sementara sampai Tahap H3–H4 (lencana notifikasi di header sudah aktif).
+Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Tahap H2 menambah keranjang, checkout, pembayaran QRIS (Snap), riwayat pesanan, dan detail pesanan. Tahap H3 menambah Koleksi, pembaca ebook (PDF.js), dan pemutar audiobook (hls.js). Tahap H4 menambah pengajuan ISBN, panel notifikasi di header, dan halaman Notifikasi.
+
+Pembaca ebook dan pemutar audiobook mengambil berkas langsung dari bucket (`localhost:8333`), jadi origin frontend harus terdaftar di aturan CORS bucket. `.env.example` sudah berisi `CORS_ALLOWED_ORIGINS=http://localhost:5173`; pastikan `.env` Anda juga memuatnya, lalu jalankan `docker compose exec django python manage.py init_storage` dan periksa bahwa keluarannya menyebut `http://localhost:5173`.
 
 ## Uji konten digital (hanya saat `DJANGO_DEBUG=True`)
 
@@ -86,10 +88,22 @@ Tahap H1 berisi beranda dan katalog, detail buku, masuk, daftar, dan profil. Tah
 6. Admin → Orders → Pesanan: ubah status pengiriman (delivery: diproses → dikirim → selesai; takeaway: diproses → siap diambil → selesai). Semua notifikasi Midtrans tercatat di Log notifikasi Midtrans.
 7. Opsional, notifikasi otomatis (webhook): buat tunnel publik ke `http://localhost:8080` (misalnya cloudflared atau ngrok), tambahkan domain tunnel ke `DJANGO_ALLOWED_HOSTS`, lalu isi Payment Notification URL di dashboard sandbox dengan `https://<domain-tunnel>/api/pembayaran/midtrans/notifikasi/`. Tanpa tunnel, status tetap diperbarui lewat "Cek status" dan pemeriksaan berkala.
 
+## Uji koleksi, pembaca ebook, dan pemutar audiobook (Tahap H3)
+
+1. Pastikan aturan CORS bucket memuat `http://localhost:5173` (lihat bagian Frontend).
+2. Miliki ebook dan audiobook: beli lewat frontend, atau beri hak akses dengan `buat_akses_uji` (bagian "Uji konten digital").
+3. Buka http://localhost:5173/koleksi. Setiap item menampilkan status kontennya; tombol Baca atau Putar aktif bila konten bisa dibuka. Salinan ebook yang belum siap disiapkan saat dibuka (pembaca menunggu sampai siap).
+4. Pembaca ebook: berpindah halaman lewat tombol, isian nomor halaman, panah kiri/kanan atau Page Up/Down, dan geser kiri/kanan di layar sentuh; perbesar/perkecil, tombol persen untuk kembali pas layar, dan layar penuh. Watermark (nama, email disamarkan, nomor pesanan, kode) terlihat di setiap halaman. Tidak ada tombol unduh.
+5. Pemutar audiobook: Putar membuat sesi streaming baru; tersedia jeda, mundur/maju 15 detik, seret garis waktu, kecepatan, dan volume. Audiobook dikemas AAC, jadi gunakan Chrome, Edge, Firefox, atau Safari biasa (Chromium tanpa codec AAC tidak bisa memutarnya).
+6. Posisi halaman terakhir dan posisi dengar terakhir diingat per akun di peramban yang sama.
+7. Admin → DRM → Hak akses: nonaktifkan hak akses → di Koleksi item itu menjadi "Akses dinonaktifkan admin" dan tidak bisa dibuka; aktifkan lagi → bisa dibuka kembali. Pembeli menerima notifikasi untuk keduanya.
+
 ## Uji notifikasi dan pengajuan ISBN
 
-1. Login di halaman uji. Bagian 8 menampilkan notifikasi beserta angka belum dibaca dan dimuat ulang tiap 30 detik.
-2. Notifikasi muncul saat pembayaran lunas atau pesanan ditutup, saat admin mengubah status pengiriman, saat admin menonaktifkan atau mengaktifkan hak akses, dan saat status pengajuan ISBN berubah.
-3. Bagian 9: ajukan naskah PDF atau DOCX (maksimal 20 MB). Berkas lain yang hanya diganti namanya menjadi .pdf/.docx ditolak.
-4. Admin → ISBN → Pengajuan ISBN: ubah status menunggu verifikasi → diproses → selesai (wajib ISBN-13 valid, misalnya 978-602-8519-93-9) atau ditolak (wajib alasan). Pemohon menerima notifikasi untuk setiap perubahan status.
+1. Lewat frontend (Tahap H4): buka http://localhost:5173/isbn. Tamu melihat cara mengajukan beserta tombol Masuk dan Daftar; setelah masuk, formulir dan daftar "Pengajuan saya" tampil.
+2. Ajukan naskah PDF atau DOCX (maksimal 20 MB; pilih berkas atau seret ke kotak unggah). Berkas lain yang hanya diganti namanya menjadi .pdf/.docx ditolak dengan pesan di bawah isian.
+3. Admin → ISBN → Pengajuan ISBN: ubah status menunggu verifikasi → diproses → selesai (wajib ISBN-13 valid, misalnya 978-602-8519-93-9) atau ditolak (wajib alasan). Pemohon menerima notifikasi untuk setiap perubahan status; detail pengajuan (`/isbn/<id>`) menampilkan lini status, nomor ISBN beserta tombol salin, atau alasan penolakan.
+4. Lonceng di header membuka panel notifikasi (angka belum dibaca dimuat ulang tiap 30 detik selama tab terlihat). Memilih notifikasi menandainya dibaca dan membuka halaman terkait; "Tandai semua dibaca" dan "Lihat semua notifikasi" (`/notifikasi`, dengan filter Belum dibaca) tersedia.
+5. Notifikasi muncul saat pembayaran lunas atau pesanan ditutup, saat admin mengubah status pengiriman, saat admin menonaktifkan atau mengaktifkan hak akses, dan saat status pengajuan ISBN berubah.
+6. Halaman uji (bagian 8 notifikasi, bagian 9 pengajuan ISBN) tetap bisa dipakai.
 

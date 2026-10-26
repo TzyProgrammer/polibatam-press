@@ -1,18 +1,17 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Bell, BookOpen, FileText, LogOut, Menu, ReceiptText, Search, ShoppingCart, Store, User, X } from '@lucide/vue'
+import { BookOpen, FileText, LogOut, Menu, ReceiptText, Search, ShoppingCart, Store, User, X } from '@lucide/vue'
 
 import logo from '../assets/logo-polibatam-press.jpg'
 import { useAuthStore } from '../stores/auth'
 import { useKeranjangStore } from '../stores/keranjang'
-import { useNotifikasiStore } from '../stores/notifikasi'
 import { usePesanStore } from '../stores/pesan'
 import MenuAkun from './MenuAkun.vue'
+import PanelNotifikasi from './PanelNotifikasi.vue'
 
 const auth = useAuthStore()
 const keranjang = useKeranjangStore()
-const notifikasi = useNotifikasiStore()
 const pesan = usePesanStore()
 const route = useRoute()
 const router = useRouter()
@@ -109,14 +108,7 @@ async function keluar() {
             <ShoppingCart :size="24" />
             <span v-if="keranjang.jumlahItem" class="lencana" aria-hidden="true">{{ batasi(keranjang.jumlahItem) }}</span>
           </RouterLink>
-          <RouterLink
-            :to="{ name: 'notifikasi' }"
-            class="tombol-ikon"
-            :aria-label="`Notifikasi, ${notifikasi.belumDibaca} belum dibaca`"
-          >
-            <Bell :size="24" />
-            <span v-if="notifikasi.belumDibaca" class="lencana" aria-hidden="true">{{ batasi(notifikasi.belumDibaca) }}</span>
-          </RouterLink>
+          <PanelNotifikasi />
           <MenuAkun class="kepala__akun" @keluar="keluar" />
         </template>
         <template v-else>

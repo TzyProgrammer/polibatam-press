@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { api } from '../api/klien'
 
 // Angka notifikasi belum dibaca untuk ikon lonceng, dimuat ulang berkala selama tab terlihat.
-// Panel daftar notifikasi dibuat di Tahap H4.
+// Daftar notifikasi (panel di header dan halaman /notifikasi) memakai composables/daftarNotifikasi.js.
 const JEDA_MUAT_MS = 30000
 let pewaktu = null
 
@@ -13,11 +13,15 @@ export const useNotifikasiStore = defineStore('notifikasi', {
   }),
 
   actions: {
+    atur(jumlah) {
+      this.belumDibaca = Math.max(0, Number(jumlah) || 0)
+    },
+
     async muat() {
       if (document.visibilityState === 'hidden') return
       try {
         const data = await api.get('/notifikasi/', { belum_dibaca: 1 })
-        this.belumDibaca = data.belum_dibaca ?? 0
+        this.atur(data.belum_dibaca)
       } catch {
         // Gagal memuat angka notifikasi tidak menghalangi halaman lain.
       }

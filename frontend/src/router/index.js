@@ -5,10 +5,8 @@ import { useAuthStore } from '../stores/auth'
 import { tujuanAman } from '../utils/navigasi'
 import BerandaView from '../views/BerandaView.vue'
 
-const Segera = () => import('../views/SegeraView.vue')
-
 // meta.perluMasuk: hanya untuk pengguna yang sudah masuk. meta.tamu: hanya untuk yang belum masuk.
-// meta.menu: menu header yang ditandai aktif. meta.tahap: halaman yang dibuat di tahap berikutnya.
+// meta.menu: menu header yang ditandai aktif. meta.tanpaKerangka: tanpa header dan footer situs.
 const routes = [
   { path: '/', name: 'beranda', component: BerandaView, meta: { judul: 'Katalog', menu: 'katalog' } },
   {
@@ -63,22 +61,40 @@ const routes = [
   {
     path: '/koleksi',
     name: 'koleksi',
-    component: Segera,
-    meta: { judul: 'Koleksi saya', perluMasuk: true, menu: 'koleksi', tahap: 'H3' },
+    component: () => import('../views/KoleksiView.vue'),
+    meta: { judul: 'Koleksi saya', perluMasuk: true, menu: 'koleksi' },
   },
   {
+    path: '/koleksi/ebook/:produkId(\\d+)',
+    name: 'baca-ebook',
+    component: () => import('../views/PembacaEbookView.vue'),
+    meta: { judul: 'Baca ebook', perluMasuk: true, menu: 'koleksi', tanpaKerangka: true },
+  },
+  {
+    path: '/koleksi/audiobook/:produkId(\\d+)',
+    name: 'putar-audiobook',
+    component: () => import('../views/PemutarAudiobookView.vue'),
+    meta: { judul: 'Dengarkan audiobook', perluMasuk: true, menu: 'koleksi' },
+  },
+  {
+    // Terbuka untuk tamu: berisi penjelasan dan ajakan masuk; formulir dan daftar hanya setelah masuk.
     path: '/isbn',
     name: 'isbn',
-    component: Segera,
-    meta: { judul: 'Pengajuan ISBN', perluMasuk: true, menu: 'isbn', tahap: 'H4' },
+    component: () => import('../views/IsbnView.vue'),
+    meta: { judul: 'Pengajuan ISBN', menu: 'isbn' },
   },
   {
-    path: '/isbn/:id',
+    path: '/isbn/:id(\\d+)',
     name: 'isbn-detail',
-    component: Segera,
-    meta: { judul: 'Pengajuan ISBN', perluMasuk: true, menu: 'isbn', tahap: 'H4' },
+    component: () => import('../views/DetailIsbnView.vue'),
+    meta: { judul: 'Pengajuan ISBN', perluMasuk: true, menu: 'isbn' },
   },
-  { path: '/notifikasi', name: 'notifikasi', component: Segera, meta: { judul: 'Notifikasi', perluMasuk: true, tahap: 'H4' } },
+  {
+    path: '/notifikasi',
+    name: 'notifikasi',
+    component: () => import('../views/NotifikasiView.vue'),
+    meta: { judul: 'Notifikasi', perluMasuk: true },
+  },
   {
     path: '/:jalur(.*)*',
     name: 'tidak-ditemukan',

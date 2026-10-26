@@ -65,6 +65,12 @@ function statusKirim(p) {
   return p.status_pengiriman_label
 }
 
+// Baris pengiriman di kartu ponsel (tanpa judul kolom "Pengiriman" seperti di tabel).
+function ringkasKirim(p) {
+  if (p.metode_pengiriman === 'tanpa') return 'Produk digital, tanpa pengiriman'
+  return `${labelPengirimanSingkat(p.metode_pengiriman)}: ${statusKirim(p)}`
+}
+
 function isiPesanan(p) {
   return `${p.ringkasan} · ${p.jumlah_item} item`
 }
@@ -161,9 +167,7 @@ function isiPesanan(p) {
           <p class="kartu-pesanan__isi">{{ isiPesanan(p) }}</p>
           <div class="kartu-pesanan__status">
             <PilStatus jenis="pembayaran" :status="p.status_pembayaran" :label="p.status_pembayaran_label" />
-            <span class="tabel__redup tabel__kecil">
-              {{ labelPengirimanSingkat(p.metode_pengiriman) }}: {{ statusKirim(p) }}
-            </span>
+            <span class="tabel__redup tabel__kecil">{{ ringkasKirim(p) }}</span>
           </div>
           <div class="kartu-pesanan__bawah">
             <span class="kartu-pesanan__total">{{ formatRupiah(p.total) }}</span>
@@ -193,7 +197,9 @@ function isiPesanan(p) {
 </template>
 
 <style scoped>
+/* position: relative menahan teks sr-only (posisi absolut) di dalam wadah gulir, agar halaman tidak melebar. */
 .tabel-wadah {
+  position: relative;
   overflow-x: auto;
   margin-bottom: 16px;
 }

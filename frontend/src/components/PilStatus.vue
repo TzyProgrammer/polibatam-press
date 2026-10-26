@@ -1,16 +1,20 @@
 <script setup>
 import { computed } from 'vue'
 
-// Label status pesanan. Warna hanya penegas; teks label selalu tertulis.
+// Label status pembayaran, pengiriman, dan pengajuan ISBN. Warna hanya penegas; teks label selalu tertulis.
 const props = defineProps({
   // pembayaran: menunggu | lunas | kedaluwarsa | dibatalkan | gagal
   // pengiriman: menunggu | diproses | dikirim | siap_diambil | selesai | tidak_ada
+  // isbn: menunggu_verifikasi | diproses | selesai | ditolak
   jenis: { type: String, default: 'pembayaran' },
   status: { type: String, required: true },
   label: { type: String, required: true },
 })
 
 const gaya = computed(() => {
+  if (props.jenis === 'isbn') {
+    return { menunggu_verifikasi: 'menunggu', diproses: 'jalan', selesai: 'selesai', ditolak: 'ditolak' }[props.status] || 'tutup'
+  }
   if (props.jenis === 'pengiriman') {
     if (props.status === 'selesai') return 'selesai'
     return ['diproses', 'dikirim', 'siap_diambil'].includes(props.status) ? 'jalan' : 'tutup'
@@ -57,5 +61,11 @@ const gaya = computed(() => {
   border-color: var(--navy-100);
   background: var(--navy-50);
   color: var(--navy);
+}
+
+.pil-status--ditolak {
+  border-color: #f4c7c3;
+  background: var(--galat-50);
+  color: var(--galat);
 }
 </style>
