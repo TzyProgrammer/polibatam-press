@@ -44,6 +44,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "core.sesi.BatasSesiAdminMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -95,6 +96,15 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Alamat halaman pembeli (frontend Vue): tautan "Lihat situs" di admin dan tautan di email.
+FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:5173").rstrip("/") + "/"
+
+# Sesi Django Admin: cookie berakhir saat peramban ditutup, dan sesi diakhiri setelah tidak aktif
+# (core.sesi.BatasSesiAdminMiddleware). SESSION_COOKIE_AGE adalah batas mutlak di server.
+ADMIN_SESI_TIDAK_AKTIF_MENIT = int(os.environ.get("ADMIN_SESI_TIDAK_AKTIF_MENIT") or 30)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 8 * 60 * 60
 
 def env_list(name):
     return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]

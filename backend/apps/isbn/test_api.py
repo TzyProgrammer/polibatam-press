@@ -177,7 +177,8 @@ class AdminPengajuanTests(PengajuanTestCase):
         return list(Notifikasi.objects.filter(penerima=self.pemohon).values_list("judul", "pesan"))
 
     def test_alur_status_sampai_isbn_terbit(self):
-        self.assertEqual([v for v, _ in self.pilihan()], ["menunggu_verifikasi", "diproses", "ditolak"])
+        # Pengajuan baru hanya bisa dilanjutkan ke Diproses (revisi Tahap R).
+        self.assertEqual([v for v, _ in self.pilihan()], ["menunggu_verifikasi", "diproses"])
         self.assertEqual(self.simpan(status="diproses").status_code, 302)
         self.assertEqual([v for v, _ in self.pilihan()], ["diproses", "selesai", "ditolak"])
 
@@ -195,26 +196,69 @@ class AdminPengajuanTests(PengajuanTestCase):
             [
                 ("ISBN sudah terbit", f"Nomor ISBN untuk naskah \"Pemrograman Web Aman\": {ISBN_VALID}."),
                 ("Pengajuan ISBN diproses",
-                 "Naskah \"Pemrograman Web Aman\" lolos verifikasi dan sedang diajukan ke Perpusnas."),
+                 "Naskah \"Pemrograman Web Aman\" sedang diproses: diverifikasi admin lalu diajukan ke Perpusnas."),
             ],
         )
         self.assertEqual(Notifikasi.objects.filter(penerima=self.pemohon).first().tautan, f"/isbn/{self.pengajuan.pk}")
 
     def test_ditolak_wajib_alasan(self):
+        self.simpan(status="diproses")
         gagal = self.simpan(status="ditolak")
         self.assertIn("alasan_penolakan", gagal.context["adminform"].form.errors)
         self.simpan(status="ditolak", alasan_penolakan="Naskah belum menyertakan daftar pustaka.")
         self.assertEqual(self.pengajuan.status, "ditolak")
+        self.assertEqual([v for v, _ in self.pilihan()], ["ditolak"])  # status akhir
         self.assertEqual(
-            self.notifikasi(),
-            [("Pengajuan ISBN ditolak", "Pengajuan untuk naskah \"Pemrograman Web Aman\" ditolak. "
-              "Alasan: Naskah belum menyertakan daftar pustaka.")],
+            self.notifikasi()[0],
+            ("Pengajuan ISBN ditolak", "Pengajuan untuk naskah \"Pemrograman Web Aman\" ditolak. "
+             "Alasan: Naskah belum menyertakan daftar pustaka."),
         )
 
     def test_status_tidak_bisa_melompat_atau_mundur(self):
         loncat = self.simpan(status="selesai", nomor_isbn=ISBN_VALID)  # belum diproses
         self.assertIn("status", loncat.context["adminform"].form.errors)
         self.assertEqual(self.pengajuan.status, "menunggu_verifikasi")
+
+    def test_pengajuan_baru_tidak_bisa_langsung_ditolak(self):
+        langsung = self.simpan(status="ditolak", alasan_penolakan="Naskah tidak lengkap.")
+        self.assertEqual(langsung.status_code, 200)
+        self.assertIn("status", langsung.context["adminform"].form.errors)
+        self.assertEqual(self.pengajuan.status, "menunggu_verifikasi")
+        self.assertEqual(self.notifikasi(), [])
+
+    def test_selesai_mengunci_alasan_penolakan(self):
+        self.simpan(status="diproses")
+        self.simpan(status="selesai", nomor_isbn=ISBN_VALID, alasan_penolakan="Tidak seharusnya tersimpan.")
+        self.assertEqual(self.pengajuan.status, "selesai")
+        self.assertEqual(self.pengajuan.nomor_isbn, ISBN_VALID)
+        self.assertEqual(self.pengajuan.alasan_penolakan, "")
+
+    def test_ditolak_mengunci_nomor_isbn_dan_tanggal_penetapan(self):
+        self.simpan(status="diproses")
+        response = self.simpan(
+            status="ditolak", alasan_penolakan="Naskah plagiat.", nomor_isbn="978-602-8519-93-0",  # tidak valid
+            tanggal_penetapan="2026-10-26",
+        )
+        self.assertEqual(response.status_code, 302)  # isian kolom terkunci diabaikan, termasuk yang tidak valid
+        self.assertEqual(self.pengajuan.status, "ditolak")
+        self.assertEqual(self.pengajuan.nomor_isbn, "")
+        self.assertIsNone(self.pengajuan.tanggal_penetapan)
+        self.assertEqual(self.pengajuan.alasan_penolakan, "Naskah plagiat.")
+
+    def test_diproses_mengunci_nomor_dan_alasan(self):
+        self.simpan(status="diproses", nomor_isbn=ISBN_VALID, alasan_penolakan="Belum diputuskan.")
+        self.assertEqual(self.pengajuan.status, "diproses")
+        self.assertEqual(self.pengajuan.nomor_isbn, "")
+        self.assertEqual(self.pengajuan.alasan_penolakan, "")
+
+    def test_halaman_memuat_pengunci_kolom(self):
+        halaman = self.client.get(self.url())
+        self.assertContains(halaman, "polibatam/admin-isbn.js")
+        form = halaman.context["adminform"].form
+        self.assertEqual(form.fields["nomor_isbn"].widget.attrs["data-status-berlaku"], "selesai")
+        self.assertEqual(form.fields["tanggal_penetapan"].widget.attrs["data-status-berlaku"], "selesai")
+        self.assertEqual(form.fields["alasan_penolakan"].widget.attrs["data-status-berlaku"], "ditolak")
+        self.assertContains(halaman, 'data-status-berlaku="ditolak"')
 
     def test_tanpa_perubahan_status_tidak_ada_notifikasi(self):
         self.simpan(catatan_admin="Sudah dicek bagian redaksi.")

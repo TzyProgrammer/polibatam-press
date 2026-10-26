@@ -7,8 +7,20 @@ from apps.notifications import layanan as notifikasi
 from .models import PengajuanISBN
 
 
+Status = PengajuanISBN.Status
+
+# Kolom yang hanya berlaku untuk status tertentu. Di halaman admin kolom lain dikunci (admin-isbn.js) dan
+# server mengosongkannya, sehingga nomor ISBN tidak tersimpan pada pengajuan yang ditolak dan alasan penolakan
+# tidak tersimpan pada pengajuan yang selesai.
+KOLOM_PER_STATUS = {
+    "nomor_isbn": (Status.SELESAI,),
+    "tanggal_penetapan": (Status.SELESAI,),
+    "alasan_penolakan": (Status.DITOLAK,),
+}
+
+
 class PengajuanISBNAdminForm(forms.ModelForm):
-    """Pilihan status mengikuti alur: menunggu verifikasi → diproses → selesai, atau ditolak."""
+    """Pilihan status mengikuti alur: menunggu verifikasi → diproses → selesai atau ditolak."""
 
     class Meta:
         model = PengajuanISBN
@@ -19,6 +31,19 @@ class PengajuanISBNAdminForm(forms.ModelForm):
         kolom = self.fields.get("status")
         if kolom is not None:
             kolom.choices = [(s.value, s.label) for s in self.instance.pilihan_status()]
+        for nama, daftar_status in KOLOM_PER_STATUS.items():
+            if nama in self.fields:
+                self.fields[nama].widget.attrs["data-status-berlaku"] = " ".join(daftar_status)
+
+    def clean(self):
+        data = super().clean()
+        status = data.get("status")
+        if status:
+            for nama, daftar_status in KOLOM_PER_STATUS.items():
+                if nama in self.fields and status not in daftar_status:
+                    data[nama] = None if nama == "tanggal_penetapan" else ""
+                    self.errors.pop(nama, None)  # isian kolom terkunci diabaikan, termasuk yang tidak valid
+        return data
 
 
 @admin.register(PengajuanISBN)
@@ -37,10 +62,15 @@ class PengajuanISBNAdmin(admin.ModelAdmin):
         )}),
         ("Verifikasi", {
             "fields": ("status", "nomor_isbn", "tanggal_penetapan", "alasan_penolakan", "catatan_admin"),
-            "description": "Nomor ISBN wajib diisi bila Selesai; alasan wajib diisi bila Ditolak. Setiap perubahan "
-            "status dikirim sebagai notifikasi ke pemohon. Catatan admin tidak ditampilkan ke pemohon.",
+            "description": "Pengajuan baru dilanjutkan ke Diproses; keputusan Selesai atau Ditolak diambil saat "
+            "Diproses. Nomor ISBN dan tanggal penetapan hanya diisi bila Selesai (nomor wajib), alasan penolakan "
+            "hanya bila Ditolak (wajib). Setiap perubahan status dikirim sebagai notifikasi ke pemohon. Catatan "
+            "admin tidak ditampilkan ke pemohon.",
         }),
     )
+
+    class Media:
+        js = ("polibatam/admin-isbn.js",)
 
     def save_model(self, request, obj, form, change):
         if obj.status == PengajuanISBN.Status.SELESAI and not obj.tanggal_penetapan:

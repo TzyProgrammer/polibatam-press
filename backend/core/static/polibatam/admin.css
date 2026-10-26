@@ -1,0 +1,180 @@
+/* Gaya tambahan Django Admin Polibatam Press (dimuat dari templates/admin/base_site.html). */
+
+/* Header biru tua Polibatam (Buku Panduan Logo dan Brand Polibatam 2023) agar menyatu dengan logo. */
+:root,
+html[data-theme="light"],
+html[data-theme="dark"] {
+  --header-bg: #1e376c;
+}
+
+#site-name .merek {
+  display: inline-flex;
+  align-items: center;
+}
+
+#site-name .merek__logo {
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+}
+
+/* Halaman masuk: logo lebih besar di tengah, latar foto Gedung Utama Politeknik Negeri Batam yang
+   diburamkan dan dibuat samar agar formulir tetap mudah dibaca. */
+body.login {
+  position: relative;
+  z-index: 0;
+}
+
+body.login::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("gupoltek-latar.jpg") center / cover no-repeat;
+  opacity: 0.55;
+}
+
+body.login #container {
+  box-shadow: 0 12px 32px rgba(20, 38, 77, 0.25);
+}
+
+body.login #header {
+  padding: 20px 16px;
+}
+
+body.login #site-name {
+  margin: 0;
+}
+
+body.login #site-name .merek__logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+}
+
+/* Tombol Hapus dan modal konfirmasi (admin-buku.js) */
+.tombol-hapus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--delete-button-bg, #ba2121);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--delete-button-bg, #ba2121);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.tombol-hapus:hover,
+.tombol-hapus:focus-visible {
+  background: var(--delete-button-bg, #ba2121);
+  color: #fff;
+}
+
+.berkas-tersimpan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 4px;
+}
+
+.berkas-tersimpan a {
+  overflow-wrap: anywhere;
+}
+
+dialog.modal-konfirmasi {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--hairline-color);
+  border-radius: 8px;
+  background: var(--body-bg);
+  color: var(--body-fg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+dialog.modal-konfirmasi::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.modal-konfirmasi__isi {
+  padding: 20px 20px 8px;
+}
+
+.modal-konfirmasi__judul {
+  margin: 0 0 8px;
+  color: var(--body-loud-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.modal-konfirmasi__pesan {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.modal-konfirmasi__galat {
+  margin: 12px 0 0;
+  color: var(--error-fg);
+  font-weight: 600;
+}
+
+.modal-konfirmasi__aksi {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px 20px;
+}
+
+.modal-konfirmasi__aksi button {
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.modal-konfirmasi__batal {
+  border: 1px solid var(--border-color);
+  background: var(--body-bg);
+  color: var(--body-fg);
+}
+
+.modal-konfirmasi__ya {
+  border: 1px solid var(--delete-button-bg, #ba2121);
+  background: var(--delete-button-bg, #ba2121);
+  color: #fff;
+}
+
+.modal-konfirmasi__ya[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Kolom yang tidak berlaku untuk format produk terpilih (stok untuk digital, berkas untuk cetak). */
+.tabular td.kolom-tidak-berlaku input {
+  opacity: 0.45;
+}
+
+.catatan-format {
+  display: block;
+  margin-top: 2px;
+  color: var(--body-quiet-color);
+  font-size: 0.6875rem;
+}
+
+/* Pengajuan ISBN: kolom yang tidak berlaku untuk status terpilih (admin-isbn.js). */
+.form-row.kolom-terkunci input,
+.form-row.kolom-terkunci textarea {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-row .catatan-terkunci {
+  margin-top: 4px;
+  font-style: italic;
+}

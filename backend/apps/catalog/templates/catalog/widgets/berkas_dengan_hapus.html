@@ -1,0 +1,10 @@
+{% comment %}Input berkas produk di admin (InputBerkasDenganHapus): tombol Hapus menggantikan kotak centang bawaan.{% endcomment %}
+{% if widget.is_initial %}
+<div class="berkas-tersimpan">
+  <span>{{ widget.initial_text }}:</span>
+  <a href="{{ widget.value.url }}" target="_blank" rel="noopener">{{ widget.value }}</a>
+  {% if widget.url_hapus %}<button type="button" class="tombol-hapus" data-hapus-berkas="{{ widget.url_hapus }}" data-pesan="{{ widget.pesan_hapus }}">Hapus</button>{% endif %}
+</div>
+<span class="berkas-ganti">{{ widget.input_text }}:</span>
+{% endif %}
+<input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>

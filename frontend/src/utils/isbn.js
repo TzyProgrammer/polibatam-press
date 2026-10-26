@@ -1,10 +1,10 @@
 import { api } from '../api/klien'
 
 // Alur status pengajuan ISBN (sama dengan PengajuanISBN.pilihan_status() di backend):
-// menunggu verifikasi → diproses → selesai, atau ditolak di salah satu tahap.
+// menunggu verifikasi → diproses → selesai atau ditolak (keputusan diambil saat diproses).
 export const KETERANGAN_ISBN = {
   menunggu_verifikasi: 'Naskah menunggu diperiksa admin Polibatam Press.',
-  diproses: 'Naskah lolos verifikasi dan sedang diajukan ke Perpusnas.',
+  diproses: 'Naskah sedang diverifikasi admin lalu diajukan ke Perpusnas.',
   selesai: 'ISBN sudah terbit untuk naskah ini.',
   ditolak: 'Pengajuan ditolak. Perbaiki naskah lalu kirim sebagai pengajuan baru.',
 }

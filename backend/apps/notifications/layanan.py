@@ -99,7 +99,7 @@ def isbn_status_berubah(pengajuan):
         ),
         status.DIPROSES: (
             "Pengajuan ISBN diproses",
-            f"Naskah {judul_naskah} lolos verifikasi dan sedang diajukan ke Perpusnas.",
+            f"Naskah {judul_naskah} sedang diproses: diverifikasi admin lalu diajukan ke Perpusnas.",
         ),
         status.SELESAI: ("ISBN sudah terbit", f"Nomor ISBN untuk naskah {judul_naskah}: {pengajuan.nomor_isbn}."),
         status.DITOLAK: (

@@ -47,12 +47,14 @@ class PengajuanISBN(models.Model):
         ordering = ["-diajukan"]
 
     def pilihan_status(self):
-        """Status yang boleh dipilih admin: menunggu verifikasi → diproses → selesai, atau ditolak.
+        """Status yang boleh dipilih admin: menunggu verifikasi → diproses → selesai atau ditolak.
 
-        Selesai dan ditolak adalah status akhir; naskah yang ditolak diajukan ulang sebagai pengajuan baru.
+        Pengajuan baru hanya bisa dilanjutkan ke Diproses (verifikasi naskah dan pengajuan ke Perpusnas);
+        keputusan Selesai atau Ditolak diambil saat Diproses. Selesai dan ditolak adalah status akhir;
+        naskah yang ditolak diajukan ulang sebagai pengajuan baru.
         """
         alur = {
-            self.Status.MENUNGGU_VERIFIKASI: [self.Status.DIPROSES, self.Status.DITOLAK],
+            self.Status.MENUNGGU_VERIFIKASI: [self.Status.DIPROSES],
             self.Status.DIPROSES: [self.Status.SELESAI, self.Status.DITOLAK],
         }
         return [self.Status(self.status), *alur.get(self.status, [])]

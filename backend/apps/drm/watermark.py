@@ -1,13 +1,19 @@
 """Watermark dinamis untuk salinan ebook (PDF) milik satu pembeli, dan pembacaan kembali kodenya.
 
 Setiap halaman diberi tiga lapis tanda:
-1. Teks diagonal semi-transparan: nama pembeli, email yang disamarkan, nomor pesanan.
-2. Footer: kode unik dan tanggal pembelian.
+1. Teks diagonal semi-transparan: identitas penerbit (Polibatam Press), nama pembeli, email yang
+   disamarkan, dan nomor pesanan.
+2. Footer: identitas penerbit, kode unik, dan tanggal pembelian.
 3. Teks tak terlihat (render mode 3) berisi kode, tetap terbaca oleh ekstraksi teks.
-Kode juga disimpan di metadata PDF (/PolibatamPressKode, /PolibatamPressPesanan).
+Kode juga disimpan di metadata PDF (/PolibatamPressKode, /PolibatamPressPesanan, /PolibatamPressPenerbit).
+
+Bagian penerbit sama di semua salinan; bagian pembeli (nama, email, pesanan, kode) berbeda untuk setiap
+pembelian, sehingga setiap salinan unik dan bisa dilacak.
 """
 
+import inspect
 import io
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -16,8 +22,12 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+logger = logging.getLogger(__name__)
+
+PENERBIT = "Polibatam Press"
 META_KODE = "/PolibatamPressKode"
 META_PESANAN = "/PolibatamPressPesanan"
+META_PENERBIT = "/PolibatamPressPenerbit"
 AWALAN_KODE = "PolibatamPressKode:"
 # Kode di teks halaman selalu didahului "Kode " (footer) atau AWALAN_KODE (teks tak terlihat),
 # agar deretan heksadesimal lain di isi buku tidak ikut terbaca sebagai kode.
@@ -28,6 +38,10 @@ HURUF_BIASA = "Helvetica"
 
 class GagalWatermark(Exception):
     """Kesalahan yang pesannya aman ditampilkan ke admin."""
+
+
+class _GagalPemadatan(Exception):
+    """Pemadatan objek kembar gagal; watermark diulang tanpa langkah itu."""
 
 
 @dataclass(frozen=True)
@@ -87,8 +101,9 @@ def _buat_lapisan(kotak, identitas):
     lebar, tinggi = kanan - kiri, atas - bawah
     nama = _teks_aman(identitas.nama)
     baris_kedua = _teks_aman(f"{identitas.email_samaran} · {identitas.nomor_pesanan}")
+    penerbit = PENERBIT.upper()
     footer = _teks_aman(
-        f"Salinan pribadi · Kode {identitas.kode} · Dibeli {identitas.tanggal} · Dilarang menyebarluaskan"
+        f"{PENERBIT} · Salinan pribadi · Kode {identitas.kode} · Dibeli {identitas.tanggal} · Dilarang menyebarluaskan"
     )
 
     buffer = io.BytesIO()
@@ -98,11 +113,17 @@ def _buat_lapisan(kotak, identitas):
     diagonal = math.hypot(lebar, tinggi)
     ukuran = _ukuran_muat(nama, HURUF_DIAGONAL, 0.6 * diagonal, 10, 44)
     ukuran_kedua = _ukuran_muat(baris_kedua, HURUF_BIASA, 0.7 * diagonal, 7, ukuran * 0.6)
+    ukuran_penerbit = max(7, ukuran * 0.5)
     c.saveState()
-    c.setFillColorRGB(0.45, 0.45, 0.45)
-    c.setFillAlpha(0.18)
     c.translate(kiri + lebar / 2, bawah + tinggi / 2)
     c.rotate(math.degrees(math.atan2(tinggi, lebar)))
+    # Identitas penerbit di atas identitas pembeli, dengan warna biru tua Polibatam.
+    c.setFillColorRGB(0.118, 0.216, 0.424)
+    c.setFillAlpha(0.2)
+    c.setFont(HURUF_DIAGONAL, ukuran_penerbit)
+    c.drawCentredString(0, ukuran * 1.25, penerbit)
+    c.setFillColorRGB(0.45, 0.45, 0.45)
+    c.setFillAlpha(0.18)
     c.setFont(HURUF_DIAGONAL, ukuran)
     c.drawCentredString(0, ukuran * 0.2, nama)
     c.setFont(HURUF_BIASA, ukuran_kedua)
@@ -128,8 +149,31 @@ def _buat_lapisan(kotak, identitas):
     return PdfReader(io.BytesIO(buffer.getvalue())).pages[0]
 
 
+# Nama argumen compress_identical_objects berganti di pypdf baru (yang lama dihapus di pypdf 7).
+_ARGUMEN_PEMADATAN = (
+    {"remove_duplicates": True, "remove_unreferenced": True}
+    if "remove_duplicates" in inspect.signature(PdfWriter.compress_identical_objects).parameters
+    else {"remove_identicals": True, "remove_orphans": True}
+)
+
+
 def beri_watermark(data, identitas):
-    """Mengembalikan bytes PDF baru ber-watermark; PDF asli tidak berubah."""
+    """Mengembalikan bytes PDF baru ber-watermark; PDF asli tidak berubah.
+
+    Objek kembar (misalnya huruf watermark di setiap halaman) dipadatkan agar ukuran berkas tidak membengkak.
+    Pemadatan itu membuka (decode) setiap stream untuk dibandingkan. Stream yang tidak bisa dibuka di server
+    — misalnya gambar JBIG2 di PDF hasil pindai, yang dekodernya (jbig2dec) berlisensi AGPL dan sengaja tidak
+    dipasang — membuat langkah itu gagal. Dalam hal itu watermark diulang dari awal tanpa pemadatan, sehingga
+    isi gambar disalin apa adanya. Peramban tetap bisa menampilkannya (PDF.js punya dekoder JBIG2 sendiri).
+    """
+    try:
+        return _tulis_watermark(data, identitas, padatkan=True)
+    except _GagalPemadatan as exc:
+        logger.info("Pemadatan PDF dilewati untuk salinan %s: %s", identitas.kode, exc.__cause__)
+        return _tulis_watermark(data, identitas, padatkan=False)
+
+
+def _tulis_watermark(data, identitas, padatkan):
     reader = baca_pdf(data)
     writer = PdfWriter(clone_from=reader)
     lapisan = {}
@@ -143,8 +187,15 @@ def beri_watermark(data, identitas):
             lapisan[kunci] = _buat_lapisan(kunci, identitas)
         halaman.merge_page(lapisan[kunci])
         halaman.compress_content_streams()
-    writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
-    writer.add_metadata({META_KODE: identitas.kode, META_PESANAN: identitas.nomor_pesanan})
+    if padatkan:
+        try:
+            writer.compress_identical_objects(**_ARGUMEN_PEMADATAN)
+        except Exception as exc:
+            # Penulis (writer) ini bisa sudah setengah diubah, jadi dibuang dan watermark diulang.
+            raise _GagalPemadatan(type(exc).__name__) from exc
+    writer.add_metadata(
+        {META_KODE: identitas.kode, META_PESANAN: identitas.nomor_pesanan, META_PENERBIT: PENERBIT}
+    )
     keluaran = io.BytesIO()
     writer.write(keluaran)
     return keluaran.getvalue()

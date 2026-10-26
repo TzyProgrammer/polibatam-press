@@ -93,6 +93,41 @@ def teks_halaman(data):
     return [halaman.extract_text() for halaman in PdfReader(io.BytesIO(data)).pages]
 
 
+# Isi stream JBIG2 tiruan: server tidak perlu (dan tidak bisa) membukanya, cukup menyalinnya apa adanya.
+DATA_JBIG2 = b"\x97JB2\r\n\x1a\n" + bytes(range(64))
+
+
+def pdf_dengan_gambar_jbig2():
+    """PDF dua halaman, masing-masing memuat gambar ber-filter JBIG2Decode (seperti PDF hasil pindai)."""
+    isi = b"BT /F1 12 Tf 72 770 Td (Isi asli halaman pindai) Tj ET q 100 0 0 100 72 600 cm /Im0 Do Q"
+    objek = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    ]
+    for _ in range(2):
+        objek.append(
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 6 0 R"
+            b" /Resources << /Font << /F1 7 0 R >> /XObject << /Im0 5 0 R >> >> >>"
+        )
+    objek.append(
+        b"<< /Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceGray /BitsPerComponent 1"
+        b" /Filter /JBIG2Decode /Length %d >>\nstream\n%s\nendstream" % (len(DATA_JBIG2), DATA_JBIG2)
+    )
+    objek.append(b"<< /Length %d >>\nstream\n%s\nendstream" % (len(isi), isi))
+    objek.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>")
+    keluaran = bytearray(b"%PDF-1.5\n")
+    posisi = []
+    for nomor, isi_objek in enumerate(objek, start=1):
+        posisi.append(len(keluaran))
+        keluaran += b"%d 0 obj\n%s\nendobj\n" % (nomor, isi_objek)
+    awal_xref = len(keluaran)
+    keluaran += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objek) + 1)
+    for nilai in posisi:
+        keluaran += b"%010d 00000 n \n" % nilai
+    keluaran += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objek) + 1, awal_xref)
+    return bytes(keluaran)
+
+
 class WatermarkTests(SimpleTestCase):
     def test_samarkan_email(self):
         for email, hasil in (
@@ -111,15 +146,17 @@ class WatermarkTests(SimpleTestCase):
         for nomor, teks in enumerate(teks_halaman(hasil), start=1):
             with self.subTest(halaman=nomor):
                 self.assertIn(f"Isi asli halaman {nomor}", teks)
+                self.assertIn("POLIBATAM PRESS", teks)  # identitas penerbit di diagonal
                 self.assertIn("Budi Santoso", teks)
                 self.assertIn("bu***@gmail.com · PP-20261022-ABC123", teks)
-                self.assertIn("Kode ABCD-1234-EF56-7890 · Dibeli 22-10-2026", teks)
+                self.assertIn("Polibatam Press · Salinan pribadi · Kode ABCD-1234-EF56-7890 · Dibeli 22-10-2026", teks)
                 self.assertIn(f"{AWALAN_KODE}ABCD-1234-EF56-7890", teks)  # teks tak terlihat
         # Rotasi dipindahkan ke isi halaman agar tanda tegak sesuai tampilan.
         self.assertEqual(reader.pages[2].rotation, 0)
         metadata = reader.metadata
         self.assertEqual(metadata[watermark.META_KODE], "ABCD-1234-EF56-7890")
         self.assertEqual(metadata[watermark.META_PESANAN], "PP-20261022-ABC123")
+        self.assertEqual(metadata[watermark.META_PENERBIT], "Polibatam Press")
         self.assertEqual(metadata["/Title"], "Buku Uji")  # metadata asli dipertahankan
         # PDF asli tidak berubah.
         self.assertNotIn("Budi Santoso", "".join(teks_halaman(data)))
@@ -169,6 +206,29 @@ class WatermarkTests(SimpleTestCase):
         with self.assertLogs("pypdf", level="WARNING"):
             with self.assertRaisesMessage(GagalWatermark, "PDF tidak dapat dibaca"):
                 watermark.beri_watermark(b"%PDF-1.4\nrusak", IDENTITAS_UJI)
+
+    def test_pdf_dengan_gambar_jbig2_tetap_diberi_watermark(self):
+        # Kasus nyata: PDF hasil pindai (misalnya Moby Dick) berisi gambar JBIG2. pypdf butuh jbig2dec
+        # (AGPL, tidak dipasang) untuk membukanya saat memadatkan objek kembar; watermark tetap harus jadi.
+        data = pdf_dengan_gambar_jbig2()
+        with self.assertLogs("apps.drm.watermark", level="INFO") as log:
+            hasil = watermark.beri_watermark(data, IDENTITAS_UJI)
+        self.assertIn("Pemadatan PDF dilewati", log.output[0])
+        self.assertIn(DATA_JBIG2, hasil)  # gambar disalin apa adanya, tanpa dibuka
+        teks = teks_halaman(hasil)
+        self.assertEqual(len(teks), 2)
+        for isi in teks:
+            self.assertIn("Isi asli halaman pindai", isi)
+            self.assertIn("Kode ABCD-1234-EF56-7890", isi)
+        watermark.verifikasi_watermark(hasil, IDENTITAS_UJI)
+        self.assertEqual(watermark.baca_kode(hasil).kode_teks, ("ABCD-1234-EF56-7890",))
+
+    def test_pemadatan_gagal_diulang_tanpa_pemadatan(self):
+        # Kegagalan apa pun di tengah pemadatan tidak boleh menghasilkan PDF setengah jadi.
+        with mock.patch.object(PdfWriter, "compress_identical_objects", side_effect=ValueError("rusak")):
+            hasil = watermark.beri_watermark(buat_pdf(2), IDENTITAS_UJI)
+        watermark.verifikasi_watermark(hasil, IDENTITAS_UJI)
+        self.assertEqual(len(PdfReader(io.BytesIO(hasil)).pages), 2)
 
     def test_verifikasi_gagal_untuk_pdf_tanpa_watermark(self):
         with self.assertRaises(GagalWatermark):

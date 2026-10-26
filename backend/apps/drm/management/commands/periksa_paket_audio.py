@@ -18,14 +18,28 @@ from apps.drm.models import PaketAudio
 
 
 def ffprobe(path):
+    """Apakah berkas terbaca sebagai segmen HLS (MPEG-TS) yang berisi audio.
+
+    Yang dihitung terbaca hanya stream audio: tanpa batasan ini, data acak seperti segmen terenkripsi
+    sesekali (sekitar 1-3% percobaan) salah dikenali ffprobe sebagai format lain, misalnya subtitle teks.
+    """
     hasil = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_name,sample_rate,channels:format=duration",
+        ["ffprobe", "-v", "error", "-f", "mpegts",
+         "-show_entries", "stream=codec_type,codec_name,sample_rate,channels:format=duration",
          "-of", "default=noprint_wrappers=1", str(path)],
         capture_output=True, text=True, timeout=60,
     )
-    baris = (hasil.stdout or hasil.stderr).replace(f"{path}: ", "").splitlines()
-    keluaran = ", ".join(dict.fromkeys(b.strip() for b in baris if b.strip()))  # buang baris ganda
-    return hasil.returncode == 0 and "codec_name" in hasil.stdout, keluaran
+
+    def baris(teks):
+        return [b.strip() for b in teks.replace(f"{path}: ", "").splitlines() if b.strip()]
+
+    data = baris(hasil.stdout)
+    terbaca = hasil.returncode == 0 and "codec_type=audio" in data
+    if terbaca:
+        keluaran = ", ".join(b for b in dict.fromkeys(data) if not b.startswith("codec_type="))  # buang baris ganda
+    else:
+        keluaran = ", ".join(dict.fromkeys(baris(hasil.stderr))) or "tidak ada stream audio yang dikenali"
+    return terbaca, keluaran
 
 
 class Command(BaseCommand):

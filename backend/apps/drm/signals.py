@@ -15,6 +15,14 @@ def kemas_saat_mp3_berubah(sender, instance, raw=False, **kwargs):
     antrikan_pengemasan(instance)
 
 
+@receiver(post_delete, sender=Produk, dispatch_uid="drm_hapus_berkas_asli_produk")
+def hapus_berkas_asli_saat_produk_dihapus(sender, instance, **kwargs):
+    # Berkas asli (PDF/MP3) hanya dimiliki produk ini; tanpa ini objeknya tertinggal di bucket.
+    nama = instance.berkas.name
+    if nama:
+        transaction.on_commit(lambda: hapus_berkas([nama]))
+
+
 @receiver(post_delete, sender=PaketAudio, dispatch_uid="drm_hapus_hls_paket")
 def hapus_hls_saat_paket_dihapus(sender, instance, **kwargs):
     prefix = instance.prefix_hls

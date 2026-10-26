@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% load static %}
+{% comment %}
+Tampilan dasar semua halaman Django Admin Polibatam Press:
+- logo Polibatam Press menggantikan tulisan judul di header (juga di halaman masuk);
+- gaya tambahan (latar halaman masuk, tombol Hapus dan modal konfirmasi) di polibatam/admin.css;
+- pengatur batas waktu tidak aktif (polibatam/admin-sesi.js) untuk admin yang sudah masuk.
+{% endcomment %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'polibatam/admin.css' %}">{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+{% if user.is_authenticated and user.is_staff and admin_sesi_menit %}
+<script src="{% static 'polibatam/admin-sesi.js' %}" data-menit="{{ admin_sesi_menit }}" data-ping="{% url 'admin:sesi_aktif' %}" defer></script>
+{% endif %}
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" class="merek">
+    <img src="{% static 'polibatam/logo-polibatam-press.jpg' %}" alt="{{ site_header|default:'Admin Marketplace Polibatam Press' }}" class="merek__logo" width="227" height="227">
+  </a>
+</div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
