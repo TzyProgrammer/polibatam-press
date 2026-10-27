@@ -1,0 +1,5 @@
+{% comment %}Tombol tautan email beserta alamat tertulis (untuk aplikasi email yang tidak menampilkan tombol). Konteks: tautan, label.{% endcomment %}
+<p style="margin:24px 0 8px;">
+  <a href="{{ tautan }}" style="display:inline-block;padding:11px 20px;background:#1e376c;border-radius:8px;color:#ffffff;font-weight:600;text-decoration:none;">{{ label }}</a>
+</p>
+<p style="margin:0 0 8px;color:#4a5161;font-size:12px;">Atau buka alamat ini: <a href="{{ tautan }}" style="color:#1e376c;word-break:break-all;">{{ tautan }}</a></p>

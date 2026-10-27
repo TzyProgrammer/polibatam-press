@@ -7,6 +7,15 @@
     <meta name="theme-color" content="#1e376c">
     <link rel="icon" type="image/png" href="/favicon.png">
     <title>Polibatam Press</title>
+    <script>
+      // Tema tersimpan (src/utils/tema.js) dipasang sebelum halaman digambar agar tidak berkedip terang.
+      ;(function () {
+        try {
+          var tema = localStorage.getItem('polibatam-press.tema')
+          if (tema === 'terang' || tema === 'gelap') document.documentElement.dataset.tema = tema
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

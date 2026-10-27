@@ -1,0 +1,9 @@
+{% extends "email/dasar.html" %}
+{% block isi %}
+<h1 style="margin:0 0 16px;color:#1e376c;font-family:Montserrat,Arial,Helvetica,sans-serif;font-size:20px;line-height:1.3;">Atur ulang kata sandi</h1>
+<p style="margin:0 0 12px;">Halo {{ nama }},</p>
+<p style="margin:0 0 12px;">Kami menerima permintaan untuk mengatur ulang kata sandi akun Polibatam Press dengan email <strong>{{ email }}</strong>.</p>
+<p style="margin:0;">Tekan tombol di bawah untuk membuat kata sandi baru. Tautan berlaku <strong>{{ menit }} menit</strong> dan hanya bisa dipakai sekali.</p>
+{% include "email/tombol.html" with label="Buat kata sandi baru" %}
+<p style="margin:16px 0 0;color:#4a5161;">Bila Anda tidak meminta ini, abaikan email ini; kata sandi Anda tidak berubah.</p>
+{% endblock %}

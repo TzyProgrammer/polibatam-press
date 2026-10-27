@@ -137,6 +137,9 @@ REST_FRAMEWORK = {
         "cek_status": "20/min",
         "notifikasi_midtrans": "120/min",
         "pengajuan_isbn": "20/hour",
+        "ubah_sandi": "5/min",
+        "lupa_sandi": "10/hour",
+        "atur_ulang_sandi": "20/hour",
     },
     # Satu proxy (Nginx) di depan Django: IP klien diambil dari entri terakhir X-Forwarded-For.
     "NUM_PROXIES": 1,
@@ -150,6 +153,25 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
 }
+
+# Email: notifikasi pembeli dan tautan atur ulang kata sandi (dikirim worker Celery).
+# Bawaan pengembangan: Mailpit di jaringan Docker (docker-compose.yml), semua email ditangkap dan bisa dibaca
+# di http://localhost:8025 tanpa terkirim ke internet. Untuk email sungguhan, isi EMAIL_HOST dan seterusnya
+# di .env (misalnya SMTP Gmail dengan sandi aplikasi). Kredensial SMTP hanya ada di .env.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND") or "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST") or "mailpit"
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT") or 1025)
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = 20
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or "Polibatam Press <no-reply@polibatampress.test>"
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Setiap notifikasi di aplikasi juga dikirim ke email pembeli (False = hanya di aplikasi).
+EMAIL_NOTIFIKASI_AKTIF = env_bool("EMAIL_NOTIFIKASI_AKTIF", True)
+# Umur tautan atur ulang kata sandi (detik). Tautan juga gugur setelah dipakai atau setelah pengguna masuk.
+PASSWORD_RESET_TIMEOUT = 60 * 60
 
 # Celery (Valkey kompatibel dengan protokol Redis)
 CELERY_BROKER_URL = os.environ["CELERY_BROKER_URL"]

@@ -146,8 +146,8 @@ class WatermarkTests(SimpleTestCase):
         for nomor, teks in enumerate(teks_halaman(hasil), start=1):
             with self.subTest(halaman=nomor):
                 self.assertIn(f"Isi asli halaman {nomor}", teks)
-                self.assertIn("POLIBATAM PRESS", teks)  # identitas penerbit di diagonal
-                self.assertIn("Budi Santoso", teks)
+                self.assertIn("Properti Milik Polibatam Press", teks)  # baris pertama diagonal
+                self.assertIn("Dibeli Oleh Budi Santoso", teks)  # baris kedua diagonal
                 self.assertIn("bu***@gmail.com · PP-20261022-ABC123", teks)
                 self.assertIn("Polibatam Press · Salinan pribadi · Kode ABCD-1234-EF56-7890 · Dibeli 22-10-2026", teks)
                 self.assertIn(f"{AWALAN_KODE}ABCD-1234-EF56-7890", teks)  # teks tak terlihat
@@ -308,7 +308,8 @@ class SalinanEbookTests(EbookTestCase):
         self.assertEqual(terbaca.kode_metadata, salinan.kode_watermark)
         teks = teks_halaman(isi)[0]
         nomor = self.item.pesanan.nomor
-        self.assertIn("Budi Santoso", teks)
+        self.assertIn("Properti Milik Polibatam Press", teks)
+        self.assertIn("Dibeli Oleh Budi Santoso", teks)
         self.assertIn(f"bu***@example.com · {nomor}", teks)
         self.assertIn(f"Kode {salinan.kode_watermark} · Dibeli 22-10-2026", teks)
         # Berkas asli produk tetap tanpa watermark.

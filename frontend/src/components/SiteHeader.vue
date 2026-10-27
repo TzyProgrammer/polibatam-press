@@ -9,6 +9,7 @@ import { useKeranjangStore } from '../stores/keranjang'
 import { usePesanStore } from '../stores/pesan'
 import MenuAkun from './MenuAkun.vue'
 import PanelNotifikasi from './PanelNotifikasi.vue'
+import TombolTema from './TombolTema.vue'
 
 const auth = useAuthStore()
 const keranjang = useKeranjangStore()
@@ -99,6 +100,7 @@ async function keluar() {
       </form>
 
       <div class="kepala__aksi">
+        <TombolTema class="kepala__tema" />
         <template v-if="auth.sudahMasuk">
           <RouterLink
             :to="{ name: 'keranjang' }"
@@ -160,6 +162,11 @@ async function keluar() {
             {{ m.label }}
           </RouterLink>
         </nav>
+        <div class="laci__pemisah" />
+        <div class="laci__tema">
+          <span class="laci__label">Tema</span>
+          <TombolTema bentuk="pilihan" />
+        </div>
         <div class="laci__pemisah" />
         <template v-if="auth.sudahMasuk">
           <RouterLink :to="{ name: 'profil' }" class="laci__tautan">
@@ -325,7 +332,7 @@ async function keluar() {
 }
 
 .laci::backdrop {
-  background: rgba(20, 38, 77, 0.45);
+  background: var(--tirai);
 }
 
 .laci__isi {
@@ -364,7 +371,7 @@ async function keluar() {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
   font-size: 0.875rem;
   font-weight: 700;
@@ -410,6 +417,20 @@ async function keluar() {
   gap: 8px;
 }
 
+.laci__tema {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.laci__label {
+  padding: 0 4px;
+  color: var(--teks-redup);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
 @media (max-width: 719px) {
   .kepala__baris {
     grid-template-areas:
@@ -438,7 +459,8 @@ async function keluar() {
 
   .kepala__nav,
   .kepala__akun,
-  .kepala__daftar {
+  .kepala__daftar,
+  .kepala__tema {
     display: none;
   }
 }

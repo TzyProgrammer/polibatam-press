@@ -132,3 +132,106 @@ class SesiAdminTests(TestCase):
         # Middleware hanya mengatur /admin/; API pembeli memakai JWT.
         self.mundurkan_aktivitas(31)
         self.assertEqual(self.client.get("/api/katalog/kategori/").status_code, 200)
+
+
+class LupaSandiAdminTests(TestCase):
+    """Lupa kata sandi Django Admin: hanya akun admin, dibatasi per IP, dan sesi lama diakhiri."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.admin = User.objects.create_superuser(email="admin@example.com", password="Sandi-Admin-2026", nama_lengkap="Admin")
+
+    def minta(self, email, **meta):
+        return self.client.post(reverse("admin_password_reset"), {"email": email}, **meta)
+
+    def test_tautan_lupa_sandi_di_halaman_masuk(self):
+        masuk = self.client.get(reverse("admin:login"))
+        self.assertContains(masuk, f'<a href="{reverse("admin_password_reset")}">Lupa Password?</a>', html=True)
+        self.assertContains(masuk, 'id="login-form"')
+        halaman = self.client.get(reverse("admin_password_reset"))
+        self.assertEqual(halaman.status_code, 200)
+        self.assertContains(halaman, "merek__logo")  # memakai tampilan admin Polibatam Press
+
+    def test_email_dikirim_hanya_untuk_admin(self):
+        from django.core import mail
+
+        User.objects.create_user(email="pembeli@example.com", password="x", nama_lengkap="Pembeli")
+        self.assertRedirects(self.minta("pembeli@example.com"), reverse("password_reset_done"))
+        self.assertEqual(mail.outbox, [])
+        self.assertRedirects(self.minta("admin@example.com"), reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.subject, "[Polibatam Press] Atur ulang kata sandi admin")
+        self.assertIn("http://testserver/admin/atur-ulang-sandi/", email.body)
+        self.assertIn("berlaku 60 menit", email.body)
+        self.assertIn("Buat kata sandi baru", email.alternatives[0][0])
+
+    def test_dibatasi_lima_permintaan_per_jam_per_ip(self):
+        from django.core import mail
+
+        for _ in range(7):
+            self.minta("admin@example.com", HTTP_X_FORWARDED_FOR="203.0.113.5")
+        self.assertEqual(len(mail.outbox), 5)
+        self.minta("admin@example.com", HTTP_X_FORWARDED_FOR="203.0.113.9")  # IP lain tidak terpengaruh
+        self.assertEqual(len(mail.outbox), 6)
+
+    def test_atur_ulang_mengakhiri_sesi_jwt_dan_memberi_tahu(self):
+        import re
+
+        from django.core import mail
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        from apps.notifications.models import Notifikasi
+
+        refresh = RefreshToken.for_user(self.admin)
+        self.minta("admin@example.com")
+        path = re.search(r"http://testserver(/admin/atur-ulang-sandi/\S+/)", mail.outbox[0].body).group(1)
+        halaman = self.client.get(path, follow=True)  # Django memindahkan token ke sesi lalu mengalihkan
+        self.assertContains(halaman, "new_password1")
+        respons = self.client.post(
+            halaman.redirect_chain[-1][0], {"new_password1": "Sandi-Baru-Admin-9", "new_password2": "Sandi-Baru-Admin-9"}
+        )
+        self.assertRedirects(respons, reverse("password_reset_complete"))
+        selesai = self.client.get(reverse("password_reset_complete"))
+        self.assertContains(selesai, f'href="{reverse("admin:login")}"')
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password("Sandi-Baru-Admin-9"))
+        self.assertTrue(BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists())
+        self.assertEqual(Notifikasi.objects.get(penerima=self.admin).judul, "Kata sandi diubah")
+
+
+class GantiSandiAdminTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(email="admin@example.com", password="Sandi-Admin-2026", nama_lengkap="Admin")
+        self.client.force_login(self.admin)
+
+    def test_ganti_sandi_sendiri_memberi_tahu(self):
+        from apps.notifications.models import Notifikasi
+
+        data = {"old_password": "Sandi-Admin-2026", "new_password1": "Sandi-Baru-Admin-9", "new_password2": "Sandi-Baru-Admin-9"}
+        self.assertEqual(self.client.post(reverse("admin:password_change"), {**data, "old_password": "salah"}).status_code, 200)
+        self.assertFalse(Notifikasi.objects.exists())
+        self.assertRedirects(self.client.post(reverse("admin:password_change"), data), reverse("admin:password_change_done"))
+        notifikasi = Notifikasi.objects.get(penerima=self.admin)
+        self.assertIn("akun admin Anda baru saja diubah", notifikasi.pesan)
+
+    def test_admin_mengganti_sandi_pembeli(self):
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        from apps.notifications.models import Notifikasi
+
+        pembeli = User.objects.create_user(email="pembeli@example.com", password="x", nama_lengkap="Pembeli")
+        refresh = RefreshToken.for_user(pembeli)
+        url = reverse("admin:auth_user_password_change", args=[pembeli.pk])
+        respons = self.client.post(
+            url, {"password1": "Sandi-Dari-Admin-5", "password2": "Sandi-Dari-Admin-5", "usable_password": "true"}
+        )
+        self.assertEqual(respons.status_code, 302, getattr(respons, "context", None) and respons.context["form"].errors)
+        pembeli.refresh_from_db()
+        self.assertTrue(pembeli.check_password("Sandi-Dari-Admin-5"))
+        self.assertTrue(BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists())
+        self.assertIn("diubah oleh admin Polibatam Press", Notifikasi.objects.get(penerima=pembeli).pesan)

@@ -35,7 +35,7 @@ const gaya = computed(() => {
   padding: 2px 12px;
   border: 1px solid var(--garis);
   border-radius: 999px;
-  background: #eef1f5;
+  background: var(--permukaan-redup);
   color: var(--teks-redup);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -52,7 +52,7 @@ const gaya = computed(() => {
 }
 
 .pil-status--selesai {
-  border-color: #abefc6;
+  border-color: var(--sukses-garis);
   background: var(--sukses-50);
   color: var(--sukses);
 }
@@ -64,7 +64,7 @@ const gaya = computed(() => {
 }
 
 .pil-status--ditolak {
-  border-color: #f4c7c3;
+  border-color: var(--galat-garis);
   background: var(--galat-50);
   color: var(--galat);
 }

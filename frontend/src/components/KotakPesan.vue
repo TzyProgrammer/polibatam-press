@@ -48,7 +48,7 @@ const ikon = computed(() => ({ galat: CircleAlert, sukses: CircleCheck })[props.
 }
 
 .kotak-pesan--galat {
-  border-color: #f4c7c3;
+  border-color: var(--galat-garis);
   background: var(--galat-50);
 }
 
@@ -57,7 +57,7 @@ const ikon = computed(() => ({ galat: CircleAlert, sukses: CircleCheck })[props.
 }
 
 .kotak-pesan--sukses {
-  border-color: #abefc6;
+  border-color: var(--sukses-garis);
   background: var(--sukses-50);
 }
 

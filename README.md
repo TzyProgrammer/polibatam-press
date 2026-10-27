@@ -36,6 +36,7 @@ Port host (semua terikat ke `127.0.0.1`, bisa diubah lewat `.env`):
 | Nginx    | `NGINX_HOST_PORT`    | 8080   |
 | S3       | `S3_HOST_PORT`       | 8333   |
 | Postgres | `POSTGRES_HOST_PORT` | 15432  |
+| Mailpit  | `MAILPIT_HOST_PORT`  | 8025   |
 
 Bila `S3_HOST_PORT` diubah, sesuaikan juga `S3_PUBLIC_ENDPOINT_URL`.
 
@@ -93,7 +94,7 @@ Pembaca ebook dan pemutar audiobook mengambil berkas langsung dari bucket (`loca
 1. Pastikan aturan CORS bucket memuat `http://localhost:5173` (lihat bagian Frontend).
 2. Miliki ebook dan audiobook: beli lewat frontend, atau beri hak akses dengan `buat_akses_uji` (bagian "Uji konten digital").
 3. Buka http://localhost:5173/koleksi. Setiap item menampilkan status kontennya; tombol Baca atau Putar aktif bila konten bisa dibuka. Salinan ebook yang belum siap disiapkan saat dibuka (pembaca menunggu sampai siap).
-4. Pembaca ebook: berpindah halaman lewat tombol, isian nomor halaman, panah kiri/kanan atau Page Up/Down, dan geser kiri/kanan di layar sentuh; perbesar/perkecil, tombol persen untuk kembali pas layar, dan layar penuh. Watermark (nama, email disamarkan, nomor pesanan, kode) terlihat di setiap halaman. Tidak ada tombol unduh.
+4. Pembaca ebook: berpindah halaman lewat tombol, isian nomor halaman, panah kiri/kanan atau Page Up/Down, dan geser kiri/kanan di layar sentuh; perbesar/perkecil, tombol persen untuk kembali pas layar, dan layar penuh. Watermark ("Properti Milik Polibatam Press", "Dibeli Oleh <nama>", email disamarkan, nomor pesanan, kode) terlihat di setiap halaman. Di layar lebar halaman tampil berpasangan seperti buku terbuka (sampul depan dan belakang sendiri). Tidak ada tombol unduh.
 5. Pemutar audiobook: Putar membuat sesi streaming baru; tersedia jeda, mundur/maju 15 detik, seret garis waktu, kecepatan, dan volume. Audiobook dikemas AAC, jadi gunakan Chrome, Edge, Firefox, atau Safari biasa (Chromium tanpa codec AAC tidak bisa memutarnya).
 6. Posisi halaman terakhir dan posisi dengar terakhir diingat per akun di peramban yang sama.
 7. Admin → DRM → Hak akses: nonaktifkan hak akses → di Koleksi item itu menjadi "Akses dinonaktifkan admin" dan tidak bisa dibuka; aktifkan lagi → bisa dibuka kembali. Pembeli menerima notifikasi untuk keduanya.
@@ -102,8 +103,27 @@ Pembaca ebook dan pemutar audiobook mengambil berkas langsung dari bucket (`loca
 
 1. Lewat frontend (Tahap H4): buka http://localhost:5173/isbn. Tamu melihat cara mengajukan beserta tombol Masuk dan Daftar; setelah masuk, formulir dan daftar "Pengajuan saya" tampil.
 2. Ajukan naskah PDF atau DOCX (maksimal 20 MB; pilih berkas atau seret ke kotak unggah). Berkas lain yang hanya diganti namanya menjadi .pdf/.docx ditolak dengan pesan di bawah isian.
-3. Admin → ISBN → Pengajuan ISBN: ubah status menunggu verifikasi → diproses → selesai (wajib ISBN-13 valid, misalnya 978-602-8519-93-9) atau ditolak (wajib alasan). Pemohon menerima notifikasi untuk setiap perubahan status; detail pengajuan (`/isbn/<id>`) menampilkan lini status, nomor ISBN beserta tombol salin, atau alasan penolakan.
+3. Admin → ISBN → Pengajuan ISBN: ubah status menunggu verifikasi → diproses, lalu diproses → selesai (wajib ISBN-13 valid, misalnya 978-602-8519-93-9) atau ditolak (wajib alasan). Kolom yang tidak berlaku untuk status terpilih terkunci. Pemohon menerima notifikasi untuk setiap perubahan status; detail pengajuan (`/isbn/<id>`) menampilkan lini status, nomor ISBN beserta tombol salin, atau alasan penolakan.
 4. Lonceng di header membuka panel notifikasi (angka belum dibaca dimuat ulang tiap 30 detik selama tab terlihat). Memilih notifikasi menandainya dibaca dan membuka halaman terkait; "Tandai semua dibaca" dan "Lihat semua notifikasi" (`/notifikasi`, dengan filter Belum dibaca) tersedia.
 5. Notifikasi muncul saat pembayaran lunas atau pesanan ditutup, saat admin mengubah status pengiriman, saat admin menonaktifkan atau mengaktifkan hak akses, dan saat status pengajuan ISBN berubah.
 6. Halaman uji (bagian 8 notifikasi, bagian 9 pengajuan ISBN) tetap bisa dipakai.
 
+## Email (notifikasi dan atur ulang kata sandi)
+
+Setiap notifikasi di aplikasi juga dikirim ke email pembeli, begitu pula tautan atur ulang kata sandi dan pemberitahuan setelah kata sandi berubah. Email dikirim worker Celery, jadi layanan `celery` harus berjalan.
+
+- Pengembangan: semua email ditangkap Mailpit (layanan `mailpit` di Docker Compose, lisensi MIT) dan tidak terkirim ke internet. Buka kotak masuknya di http://localhost:8025. Tidak perlu mengisi apa pun di `.env`.
+- Email sungguhan (misalnya untuk video demo): isi bagian `EMAIL_*` di `.env` sesuai `.env.example` (contoh SMTP Gmail dengan sandi aplikasi), lalu `docker compose up -d django celery`. Jangan meng-commit nilai itu.
+- `EMAIL_NOTIFIKASI_AKTIF=False` mematikan salinan email notifikasi (notifikasi tetap tampil di aplikasi).
+
+## Uji revisi Tahap R
+
+1. Terapkan perubahan: `docker compose up -d --build` (layanan `mailpit` baru), `docker compose exec django python manage.py migrate` (kolom kecamatan), lalu `cd frontend && npm run dev`.
+2. Daftar di http://localhost:5173/daftar: formulir di kanan pada panel biru tua, foto Tower A di kiri; perpindahan Masuk ↔ Daftar memakai panel foto yang bergeser seperti pintu geser (formulir tidak ikut bergeser). Setelah mendaftar, pembeli diarahkan ke halaman Masuk dengan email terisi (tidak langsung masuk). Kecamatan opsional tersimpan di profil.
+3. Tema: tombol di header berputar Sistem → Terang → Gelap (di ponsel lewat laci menu). Pilihan tetap setelah halaman dimuat ulang.
+4. Profil → Ubah kata sandi: sandi lama salah ditolak; setelah berhasil, perangkat lain keluar dan email "Kata sandi diubah" masuk ke Mailpit.
+5. Masuk → "Lupa kata sandi?" → isi email → buka email di Mailpit → tombol "Buat kata sandi baru" → simpan → masuk dengan kata sandi baru. Tautan berlaku 60 menit dan hanya sekali pakai.
+6. Checkout delivery: telepon, alamat, dan kecamatan terisi dari profil. Bila diubah, muncul modal "Ubah data di profil?": "Ya" mengganti data profil, "Tidak" hanya untuk pesanan ini, Escape membatalkan. Profil yang masih kosong langsung terisi tanpa modal.
+7. Admin: halaman masuk berlogo dengan latar foto Gedung Utama; tautan "Lupa Password?" (khusus akun admin); menu berkelompok; sesi berakhir setelah 30 menit tanpa aktivitas (`ADMIN_SESI_TIDAK_AKTIF_MENIT`) dan saat peramban ditutup; formulir buku dengan baris produk per format dan tombol Hapus bermodal; pengajuan ISBN mengikuti alur menunggu verifikasi → diproses → selesai/ditolak.
+8. Pembaca ebook di layar laptop: sampul depan tampil sendiri, lalu halaman 2–3, 4–5, dan seterusnya berdampingan seperti buku terbuka; sampul belakang tampil sendiri. Tombol satu/dua halaman ada di bilah atas (di ponsel selalu satu halaman).
+9. Watermark ebook: baris diagonal "Properti Milik Polibatam Press", "Dibeli Oleh <nama>", lalu email samaran · nomor pesanan. Salinan yang dibuat sebelum perubahan ini perlu diproses ulang: Admin → Salinan ebook → pilih → aksi "Proses ulang salinan ebook terpilih".

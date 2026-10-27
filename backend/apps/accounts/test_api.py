@@ -41,6 +41,16 @@ class RegistrasiTests(ApiAkunTestCase):
         self.assertNotEqual(pengguna.password, SANDI)
         self.assertFalse(pengguna.is_staff)
 
+    def test_registrasi_dengan_alamat_dan_kecamatan_opsional(self):
+        response = self.daftar(alamat="Jl. Ahmad Yani", kecamatan="Batam Kota")
+        self.assertEqual(response.status_code, 201)
+        pengguna = User.objects.get(email="siti@example.com")
+        self.assertEqual((pengguna.alamat, pengguna.kecamatan), ("Jl. Ahmad Yani", "Batam Kota"))
+        self.assertNotIn("access", response.data)  # registrasi tidak langsung memasukkan pembeli
+        response = self.daftar(email="lain@example.com", kecamatan="Bintan")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("kecamatan", response.data)
+
     def test_registrasi_tidak_bisa_menjadi_admin(self):
         response = self.daftar(role="admin", is_staff=True, is_superuser=True)
         self.assertEqual(response.status_code, 201)
@@ -168,7 +178,7 @@ class ProfilTests(ApiAkunTestCase):
         self.assertEqual(
             response.data,
             {"id": self.pembeli.pk, "email": "budi@example.com", "nama_lengkap": "Budi", "no_telepon": "",
-             "alamat": "", "role": "pembeli"},
+             "alamat": "", "kecamatan": "", "role": "pembeli"},
         )
 
     def test_ubah_profil_tanpa_bisa_mengubah_email_dan_peran(self):
@@ -186,6 +196,16 @@ class ProfilTests(ApiAkunTestCase):
         self.assertEqual(self.pembeli.alamat, "Batam Centre")
         self.assertEqual(self.pembeli.email, "budi@example.com")
         self.assertEqual(self.pembeli.role, User.Role.PEMBELI)
+
+    def test_kecamatan_hanya_kota_batam_atau_kosong(self):
+        self.pakai_token(self.login().data["access"])
+        response = self.client.patch(reverse("auth-profil"), {"kecamatan": "Sekupang"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["kecamatan"], "Sekupang")
+        response = self.client.patch(reverse("auth-profil"), {"kecamatan": "Tanjungpinang"}, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Kota Batam", str(response.data["kecamatan"]))
+        self.assertEqual(self.client.patch(reverse("auth-profil"), {"kecamatan": ""}, format="json").data["kecamatan"], "")
 
     def test_profil_perlu_login_dan_put_tidak_diizinkan(self):
         response = self.client.get(reverse("auth-profil"))

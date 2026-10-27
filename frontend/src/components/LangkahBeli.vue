@@ -71,7 +71,7 @@ function keadaan(nomor) {
 }
 
 .langkah__item.is-selesai::after {
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .langkah__tanda {
@@ -91,7 +91,7 @@ function keadaan(nomor) {
 .is-selesai .langkah__tanda,
 .is-aktif .langkah__tanda {
   border-color: var(--navy);
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
 }
 
@@ -138,7 +138,7 @@ function keadaan(nomor) {
 
   .langkah__item.is-selesai::before,
   .langkah__item.is-aktif::before {
-    background: var(--navy);
+    background: var(--isi-utama);
   }
 
   .langkah__nama {

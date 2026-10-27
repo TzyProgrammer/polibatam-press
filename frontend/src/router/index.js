@@ -5,6 +5,8 @@ import { useAuthStore } from '../stores/auth'
 import { tujuanAman } from '../utils/navigasi'
 import BerandaView from '../views/BerandaView.vue'
 
+const HalamanAuth = () => import('../views/AuthView.vue')
+
 // meta.perluMasuk: hanya untuk pengguna yang sudah masuk. meta.tamu: hanya untuk yang belum masuk.
 // meta.menu: menu header yang ditandai aktif. meta.tanpaKerangka: tanpa header dan footer situs.
 const routes = [
@@ -15,12 +17,17 @@ const routes = [
     component: () => import('../views/DetailBukuView.vue'),
     meta: { judul: 'Detail buku', menu: 'katalog' },
   },
-  { path: '/masuk', name: 'masuk', component: () => import('../views/MasukView.vue'), meta: { judul: 'Masuk', tamu: true } },
+  // Masuk, Daftar, Lupa kata sandi, dan Atur ulang kata sandi memakai satu komponen (AuthView) agar perpindahan
+  // antarhalaman itu bisa dianimasikan (panel formulir dan foto bertukar sisi).
+  { path: '/masuk', name: 'masuk', component: HalamanAuth, meta: { judul: 'Masuk', tamu: true } },
+  { path: '/daftar', name: 'daftar', component: HalamanAuth, meta: { judul: 'Daftar akun', tamu: true } },
+  { path: '/lupa-sandi', name: 'lupa-sandi', component: HalamanAuth, meta: { judul: 'Lupa kata sandi', tamu: true } },
   {
-    path: '/daftar',
-    name: 'daftar',
-    component: () => import('../views/DaftarView.vue'),
-    meta: { judul: 'Daftar akun', tamu: true },
+    // Terbuka juga saat masuk: tautan dari email bisa dibuka di peramban yang sedang memakai akun itu.
+    path: '/atur-ulang-sandi',
+    name: 'atur-ulang-sandi',
+    component: HalamanAuth,
+    meta: { judul: 'Atur ulang kata sandi' },
   },
   {
     path: '/profil',

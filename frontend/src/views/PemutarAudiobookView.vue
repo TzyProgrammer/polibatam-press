@@ -562,7 +562,7 @@ onBeforeUnmount(() => {
   margin-top: -6px;
   border: 0;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
   -webkit-appearance: none;
 }
 
@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
   height: 18px;
   border: 0;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .garis-waktu__geser:disabled {
@@ -633,12 +633,12 @@ onBeforeUnmount(() => {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
 }
 
 .kontrol__putar:not(:disabled):hover {
-  background: var(--navy-900);
+  background: var(--isi-utama-hover);
 }
 
 .berputar {

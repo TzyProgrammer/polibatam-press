@@ -606,7 +606,7 @@ a.isi__judul:hover {
 
 .lini__item.is-selesai::before,
 .lini__item.is-aktif::before {
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .lini__tanda {
@@ -622,14 +622,14 @@ a.isi__judul:hover {
 
 .is-selesai .lini__tanda {
   border-color: var(--navy);
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
 }
 
 .is-aktif .lini__tanda {
   border-color: var(--navy);
   box-shadow: inset 0 0 0 4px var(--permukaan);
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .is-selesai,

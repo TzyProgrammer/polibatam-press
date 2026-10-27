@@ -326,7 +326,7 @@ async function tambah() {
 
 .format__pilihan.is-nonaktif {
   border-style: dashed;
-  background: #f3f4f7;
+  background: var(--permukaan-redup);
   color: var(--teks-redup);
   cursor: not-allowed;
 }

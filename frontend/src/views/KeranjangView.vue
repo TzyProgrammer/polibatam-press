@@ -260,7 +260,7 @@ async function hapus(i) {
 .item-keranjang.is-tidak-tersedia {
   border-style: dashed;
   border-color: var(--garis-isian);
-  background: #f8f9fb;
+  background: var(--permukaan-redup);
 }
 
 .item-keranjang__sampul {

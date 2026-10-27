@@ -12,7 +12,9 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
+from apps.accounts.profil import perbarui_dari_checkout
 from apps.catalog.models import Produk
+from core.wilayah import KECAMATAN_KOTA_BATAM
 
 from . import midtrans
 from .keranjang import keranjang_milik, ringkasan
@@ -20,21 +22,7 @@ from .models import ItemPesanan, Pesanan
 
 logger = logging.getLogger(__name__)
 
-# Delivery hanya untuk wilayah Kota Batam (12 kecamatan) dengan ongkir tetap.
-KECAMATAN_KOTA_BATAM = (
-    "Batam Kota",
-    "Batu Aji",
-    "Batu Ampar",
-    "Belakang Padang",
-    "Bengkong",
-    "Bulang",
-    "Galang",
-    "Lubuk Baja",
-    "Nongsa",
-    "Sagulung",
-    "Sei Beduk",
-    "Sekupang",
-)
+# Delivery hanya untuk wilayah Kota Batam (12 kecamatan, core/wilayah.py) dengan ongkir tetap.
 
 # Nama item di Snap maksimal 50 karakter.
 PANJANG_NAMA_ITEM = 50
@@ -159,6 +147,10 @@ def buat_pesanan(pembeli, pengiriman):
     pesanan.snap_token = snap["token"]
     pesanan.snap_redirect_url = snap["redirect_url"]
     pesanan.save(update_fields=["snap_token", "snap_redirect_url", "diperbarui"])
+    if dikirim:
+        # Di akhir transaksi: bila checkout gagal, profil juga tidak berubah. Pesanan yang semuanya digital
+        # tidak memakai isian pengiriman, jadi profil juga tidak diubah.
+        perbarui_dari_checkout(pembeli, pengiriman)
     logger.info("Pesanan %s dibuat (total %s, batas bayar %s).", pesanan.nomor, pesanan.total, pesanan.batas_bayar)
     return pesanan
 

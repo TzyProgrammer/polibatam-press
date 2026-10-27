@@ -1,0 +1,11 @@
+{% autoescape off %}Halo {{ nama }},
+
+{{ judul }}
+{{ pesan }}
+{% if tautan %}
+{{ label }}: {{ tautan }}
+{% endif %}
+--
+Notifikasi ini juga tersedia di ikon lonceng setelah Anda masuk ke {{ url_situs }}
+Email ini dikirim otomatis oleh Marketplace Polibatam Press, Politeknik Negeri Batam. Mohon tidak membalas email ini.
+{% endautoescape %}

@@ -100,14 +100,14 @@ textarea {
   z-index: 100;
   padding: 10px 16px;
   border-radius: var(--radius-kecil);
-  background: var(--navy);
-  color: #fff;
+  background: var(--isi-utama);
+  color: var(--teks-di-isi);
   font-weight: 600;
 }
 
 .lewati:focus {
   top: 16px;
-  color: #fff;
+  color: var(--teks-di-isi);
 }
 
 /* Halaman */
@@ -149,13 +149,13 @@ textarea {
 }
 
 .tombol--utama {
-  background: var(--navy);
-  color: #fff;
+  background: var(--isi-utama);
+  color: var(--teks-di-isi);
 }
 
 .tombol--utama:hover {
-  background: var(--navy-900);
-  color: #fff;
+  background: var(--isi-utama-hover);
+  color: var(--teks-di-isi);
 }
 
 .tombol--sekunder {
@@ -216,7 +216,7 @@ textarea {
   padding: 0 5px;
   border-radius: 9px;
   background: var(--jingga);
-  color: var(--teks);
+  color: var(--teks-di-jingga);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -274,7 +274,7 @@ textarea {
 }
 
 .isian__kontrol[readonly] {
-  background: #eef1f5;
+  background: var(--permukaan-redup);
   color: var(--teks-redup);
 }
 
@@ -323,9 +323,9 @@ textarea.isian__kontrol {
 }
 
 .pil[aria-pressed='true'] {
-  border-color: var(--navy);
-  background: var(--navy);
-  color: #fff;
+  border-color: var(--isi-utama);
+  background: var(--isi-utama);
+  color: var(--teks-di-isi);
 }
 
 /* Halaman Masuk dan Daftar */
@@ -385,7 +385,7 @@ textarea.isian__kontrol {
 /* Kerangka saat memuat */
 .kerangka {
   border-radius: var(--radius-kecil);
-  background: linear-gradient(90deg, #e9edf3 25%, #f3f5f9 50%, #e9edf3 75%);
+  background: linear-gradient(90deg, var(--kerangka-1) 25%, var(--kerangka-2) 50%, var(--kerangka-1) 75%);
   background-size: 200% 100%;
   animation: kilau 1.4s ease-in-out infinite;
 }

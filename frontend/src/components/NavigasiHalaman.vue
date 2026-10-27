@@ -85,7 +85,7 @@ a.paginasi__item:hover {
 
 .paginasi__item.is-aktif {
   border-color: var(--navy);
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
 }
 

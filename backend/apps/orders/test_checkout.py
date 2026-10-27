@@ -197,6 +197,47 @@ class CheckoutCetakTests(CheckoutTestCase):
         self.assertEqual(self.stok_cetak(), 3)
 
 
+class CheckoutProfilTests(CheckoutTestCase):
+    """Telepon, alamat, dan kecamatan dari checkout disimpan ke profil (revisi Tahap R)."""
+
+    def profil(self):
+        self.pembeli.refresh_from_db()
+        return self.pembeli.no_telepon, self.pembeli.alamat, self.pembeli.kecamatan
+
+    def test_kolom_kosong_diisi_dan_yang_berisi_tidak_ditimpa_tanpa_persetujuan(self):
+        self.tambah(self.cetak)
+        self.checkout(**{**DELIVERY, "alamat": "  Perumahan   Taman Raya  "})
+        # Telepon profil (0811-...) tetap; alamat dan kecamatan yang kosong diisi dari checkout.
+        self.assertEqual(self.profil(), ("0811-1111-2222", "Perumahan Taman Raya", "Batam Kota"))
+
+    def test_timpa_setelah_pembeli_menyetujui(self):
+        self.pembeli.alamat, self.pembeli.kecamatan = "Alamat lama", "Sekupang"
+        self.pembeli.save()
+        self.tambah(self.cetak)
+        self.checkout(**DELIVERY, simpan_ke_profil=True)
+        self.assertEqual(self.profil(), ("0812-3456-7890", "Perumahan Taman Raya Blok A No. 5", "Batam Kota"))
+
+    def test_takeaway_hanya_telepon(self):
+        kosong = buat_pembeli("kosong@example.com")
+        self.login(kosong)
+        self.tambah(self.cetak)
+        self.checkout(metode_pengiriman="takeaway", no_telepon_penerima="0813-0000-1111", alamat="abaikan")
+        kosong.refresh_from_db()
+        self.assertEqual((kosong.no_telepon, kosong.alamat, kosong.kecamatan), ("0813-0000-1111", "", ""))
+
+    def test_produk_digital_tidak_mengubah_profil(self):
+        self.tambah(self.ebook)
+        self.checkout(**DELIVERY, simpan_ke_profil=True)
+        self.assertEqual(self.profil(), ("0811-1111-2222", "", ""))
+
+    def test_checkout_gagal_profil_tidak_berubah(self):
+        self.tambah(self.cetak)
+        self.midtrans.gagal = midtrans.GagalMidtrans("Snap API menolak permintaan (HTTP 500)")
+        with self.assertLogs("apps.orders.checkout", "ERROR"):
+            self.checkout(kode=502, **DELIVERY, simpan_ke_profil=True)
+        self.assertEqual(self.profil(), ("0811-1111-2222", "", ""))
+
+
 class CheckoutDitolakTests(CheckoutTestCase):
     def test_keranjang_kosong(self):
         response = self.checkout(kode=400)

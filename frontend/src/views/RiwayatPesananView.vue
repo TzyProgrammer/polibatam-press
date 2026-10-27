@@ -240,7 +240,7 @@ function isiPesanan(p) {
 }
 
 .tabel tbody tr:hover {
-  background: #fafbfd;
+  background: var(--permukaan-redup);
 }
 
 .tabel__nomor {

@@ -1,8 +1,8 @@
 """Watermark dinamis untuk salinan ebook (PDF) milik satu pembeli, dan pembacaan kembali kodenya.
 
 Setiap halaman diberi tiga lapis tanda:
-1. Teks diagonal semi-transparan: identitas penerbit (Polibatam Press), nama pembeli, email yang
-   disamarkan, dan nomor pesanan.
+1. Teks diagonal semi-transparan tiga baris: "Properti Milik Polibatam Press", "Dibeli Oleh <nama pembeli>",
+   lalu email yang disamarkan dan nomor pesanan.
 2. Footer: identitas penerbit, kode unik, dan tanggal pembelian.
 3. Teks tak terlihat (render mode 3) berisi kode, tetap terbaca oleh ekstraksi teks.
 Kode juga disimpan di metadata PDF (/PolibatamPressKode, /PolibatamPressPesanan, /PolibatamPressPenerbit).
@@ -99,9 +99,9 @@ def _buat_lapisan(kotak, identitas):
     """Satu halaman PDF transparan berisi tanda, digambar pada koordinat kotak (cropbox) halaman."""
     kiri, bawah, kanan, atas = kotak
     lebar, tinggi = kanan - kiri, atas - bawah
-    nama = _teks_aman(identitas.nama)
-    baris_kedua = _teks_aman(f"{identitas.email_samaran} · {identitas.nomor_pesanan}")
-    penerbit = PENERBIT.upper()
+    baris_penerbit = _teks_aman(f"Properti Milik {PENERBIT}")
+    baris_pembeli = _teks_aman(f"Dibeli Oleh {identitas.nama}")
+    baris_pesanan = _teks_aman(f"{identitas.email_samaran} · {identitas.nomor_pesanan}")
     footer = _teks_aman(
         f"{PENERBIT} · Salinan pribadi · Kode {identitas.kode} · Dibeli {identitas.tanggal} · Dilarang menyebarluaskan"
     )
@@ -109,25 +109,27 @@ def _buat_lapisan(kotak, identitas):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=(max(kanan, 1), max(atas, 1)))
 
-    # 1. Diagonal di tengah halaman, searah diagonal kiri-bawah ke kanan-atas.
+    # 1. Diagonal di tengah halaman, searah diagonal kiri-bawah ke kanan-atas, tiga baris:
+    #    "Properti Milik Polibatam Press" / "Dibeli Oleh <nama>" / email samaran · nomor pesanan.
+    #    Baris pembeli paling besar; ukurannya menyesuaikan panjang nama agar tetap muat di halaman.
     diagonal = math.hypot(lebar, tinggi)
-    ukuran = _ukuran_muat(nama, HURUF_DIAGONAL, 0.6 * diagonal, 10, 44)
-    ukuran_kedua = _ukuran_muat(baris_kedua, HURUF_BIASA, 0.7 * diagonal, 7, ukuran * 0.6)
-    ukuran_penerbit = max(7, ukuran * 0.5)
+    ukuran = _ukuran_muat(baris_pembeli, HURUF_DIAGONAL, 0.62 * diagonal, 10, 40)
+    ukuran_penerbit = _ukuran_muat(baris_penerbit, HURUF_DIAGONAL, 0.62 * diagonal, 7, ukuran * 0.62)
+    ukuran_pesanan = _ukuran_muat(baris_pesanan, HURUF_BIASA, 0.7 * diagonal, 7, ukuran * 0.6)
     c.saveState()
     c.translate(kiri + lebar / 2, bawah + tinggi / 2)
     c.rotate(math.degrees(math.atan2(tinggi, lebar)))
-    # Identitas penerbit di atas identitas pembeli, dengan warna biru tua Polibatam.
+    # Baris penerbit berwarna biru tua Polibatam, di atas identitas pembeli yang berwarna abu-abu.
     c.setFillColorRGB(0.118, 0.216, 0.424)
     c.setFillAlpha(0.2)
     c.setFont(HURUF_DIAGONAL, ukuran_penerbit)
-    c.drawCentredString(0, ukuran * 1.25, penerbit)
+    c.drawCentredString(0, ukuran * 1.15 + ukuran_penerbit * 0.25, baris_penerbit)
     c.setFillColorRGB(0.45, 0.45, 0.45)
     c.setFillAlpha(0.18)
     c.setFont(HURUF_DIAGONAL, ukuran)
-    c.drawCentredString(0, ukuran * 0.2, nama)
-    c.setFont(HURUF_BIASA, ukuran_kedua)
-    c.drawCentredString(0, -ukuran_kedua * 1.3, baris_kedua)
+    c.drawCentredString(0, ukuran * 0.2, baris_pembeli)
+    c.setFont(HURUF_BIASA, ukuran_pesanan)
+    c.drawCentredString(0, -ukuran_pesanan * 1.3, baris_pesanan)
     c.restoreState()
 
     # 2. Footer.

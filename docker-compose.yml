@@ -44,6 +44,16 @@ services:
       timeout: 5s
       retries: 20
 
+  # Penangkap email untuk pengembangan (Mailpit, lisensi MIT). Semua email aplikasi (notifikasi, atur ulang
+  # kata sandi) diterima di sini dan dibaca di http://localhost:8025; tidak ada yang terkirim ke internet.
+  # Port SMTP 1025 hanya di jaringan Docker. Untuk email sungguhan, isi EMAIL_HOST dkk. di .env.
+  mailpit:
+    image: axllent/mailpit:v1.31
+    environment:
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"
+
   django:
     build: ./backend
     command: python manage.py runserver 0.0.0.0:8000
@@ -55,6 +65,8 @@ services:
         condition: service_healthy
       broker:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   celery:
     build: ./backend
@@ -67,6 +79,8 @@ services:
         condition: service_healthy
       broker:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   # Penjadwal tugas berkala (CELERY_BEAT_SCHEDULE di settings.py): tiap 5 menit pesanan yang menunggu
   # pembayaran dicocokkan dengan Status API Midtrans. Berkas jadwal disimpan di /tmp container.

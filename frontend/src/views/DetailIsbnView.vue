@@ -325,7 +325,7 @@ async function salinIsbn() {
 .lini__item.is-selesai::before,
 .lini__item.is-aktif::before,
 .lini__item.is-ditolak::before {
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .lini__tanda {
@@ -341,19 +341,20 @@ async function salinIsbn() {
 
 .is-selesai .lini__tanda {
   border-color: var(--navy);
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
 }
 
 .is-aktif .lini__tanda {
   border-color: var(--navy);
   box-shadow: inset 0 0 0 4px var(--permukaan);
-  background: var(--navy);
+  background: var(--isi-utama);
 }
 
 .is-ditolak .lini__tanda {
-  border-color: var(--galat);
-  background: var(--galat);
+  /* Merah tetap (bukan --galat yang lebih terang di tema gelap) agar tanda silang putih tetap kontras. */
+  border-color: #b42318;
+  background: #b42318;
   color: #fff;
 }
 
@@ -377,12 +378,12 @@ async function salinIsbn() {
 }
 
 .hasil--selesai {
-  border: 1px solid #abefc6;
+  border: 1px solid var(--sukses-garis);
   background: var(--sukses-50);
 }
 
 .hasil--ditolak {
-  border: 1px solid #f4c7c3;
+  border: 1px solid var(--galat-garis);
   background: var(--galat-50);
 }
 

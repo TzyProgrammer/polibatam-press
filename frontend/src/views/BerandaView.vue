@@ -243,7 +243,7 @@ async function keKatalog() {
   overflow: hidden;
   padding: 40px 48px;
   border-radius: 16px;
-  background: var(--navy);
+  background: var(--latar-merek);
   color: #fff;
 }
 
@@ -280,12 +280,12 @@ async function keKatalog() {
 
 .hero__tombol-utama {
   background: #fff;
-  color: var(--navy);
+  color: #1e376c;
 }
 
 .hero__tombol-utama:hover {
-  background: var(--biru-50);
-  color: var(--navy-900);
+  background: #e8f7fc;
+  color: #14264d;
 }
 
 .hero__tombol-garis {

@@ -1,0 +1,9 @@
+{% extends "email/dasar.html" %}
+{% block isi %}
+<p style="margin:0 0 4px;color:#4a5161;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">{{ kategori }}</p>
+<h1 style="margin:0 0 16px;color:#1e376c;font-family:Montserrat,Arial,Helvetica,sans-serif;font-size:20px;line-height:1.3;">{{ judul }}</h1>
+<p style="margin:0 0 12px;">Halo {{ nama }},</p>
+<p style="margin:0;">{{ pesan|linebreaksbr }}</p>
+{% if tautan %}{% include "email/tombol.html" %}{% endif %}
+{% endblock %}
+{% block catatan %}Notifikasi ini juga tersedia di ikon lonceng setelah Anda masuk. {% endblock %}

@@ -42,7 +42,7 @@ const pesan = usePesanStore()
   padding: 10px 6px 10px 16px;
   border-left: 4px solid var(--biru);
   border-radius: var(--radius);
-  background: var(--navy-900);
+  background: var(--latar-pesan);
   color: #fff;
   box-shadow: var(--bayangan);
 }

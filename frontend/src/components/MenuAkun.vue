@@ -144,7 +144,7 @@ watch(() => route.fullPath, () => tutup(false))
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;

@@ -92,6 +92,15 @@ class AdminPolibatam(admin.AdminSite):
         """Dipanggil admin-sesi.js selama admin aktif; batas tidak aktif diperbarui oleh middleware."""
         return HttpResponse(status=204)
 
+    def password_change(self, request, extra_context=None):
+        """Ganti sandi admin (tautan di header). Setelah berhasil, pemberitahuan keamanan dikirim ke email admin."""
+        respons = super().password_change(request, extra_context)
+        if request.method == "POST" and respons.status_code == 302:
+            from apps.notifications import layanan as notifikasi
+
+            notifikasi.sandi_diubah(request.user, "admin")
+        return respons
+
     def _app_dict_lengkap(self, request, app_label=None):
         """App dict bawaan ditambah halaman tambahan yang boleh dilihat pengguna ini."""
         app_dict = self._build_app_dict(request, app_label)

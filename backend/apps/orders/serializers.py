@@ -4,9 +4,9 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import POLA_TELEPON
 from apps.catalog.serializers import url_sampul
+from core.wilayah import KECAMATAN_KOTA_BATAM
 
 from . import midtrans
-from .checkout import KECAMATAN_KOTA_BATAM
 from .models import ItemPesanan, Pesanan
 
 PESAN_TELEPON = "Nomor telepon hanya boleh berisi angka, spasi, atau tanda hubung (boleh diawali +), 8–20 karakter."
@@ -62,6 +62,9 @@ class CheckoutSerializer(serializers.Serializer):
 
     Nama dan nomor telepon penerima memakai data profil bila dikosongkan. Delivery wajib alamat dan
     kecamatan di Kota Batam; alamat yang disimpan: "<alamat>, Kec. <kecamatan>, Kota Batam".
+    Telepon, alamat, dan kecamatan yang diketik juga disimpan ke profil (apps.accounts.profil): kolom profil
+    yang kosong langsung diisi, kolom yang sudah berisi hanya diganti bila simpan_ke_profil bernilai true
+    (pembeli menyetujui modal konfirmasi di halaman checkout).
     """
 
     metode_pengiriman = serializers.ChoiceField(
@@ -79,6 +82,7 @@ class CheckoutSerializer(serializers.Serializer):
         allow_blank=True,
         error_messages={"invalid_choice": "Delivery hanya untuk kecamatan di Kota Batam."},
     )
+    simpan_ke_profil = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
         metode = attrs.get("metode_pengiriman") or ""
@@ -95,6 +99,7 @@ class CheckoutSerializer(serializers.Serializer):
         elif not POLA_TELEPON.match(telepon):
             error["no_telepon_penerima"] = PESAN_TELEPON
         alamat_lengkap = ""
+        profil = {"no_telepon": attrs.get("no_telepon_penerima", "").strip()}
         if metode == Pesanan.MetodePengiriman.DELIVERY:
             alamat = " ".join(attrs.get("alamat", "").split())
             kecamatan = attrs.get("kecamatan", "")
@@ -103,6 +108,7 @@ class CheckoutSerializer(serializers.Serializer):
             if not kecamatan:
                 error["kecamatan"] = "Pilih kecamatan di Kota Batam (delivery hanya untuk area Kota Batam)."
             alamat_lengkap = f"{alamat}, Kec. {kecamatan}, Kota Batam"
+            profil.update(alamat=alamat, kecamatan=kecamatan)
         if error:
             raise serializers.ValidationError(error)
         return {
@@ -110,6 +116,8 @@ class CheckoutSerializer(serializers.Serializer):
             "nama_penerima": nama,
             "no_telepon_penerima": telepon,
             "alamat_pengiriman": alamat_lengkap,
+            "profil": profil,
+            "simpan_ke_profil": attrs.get("simpan_ke_profil", False),
         }
 
 

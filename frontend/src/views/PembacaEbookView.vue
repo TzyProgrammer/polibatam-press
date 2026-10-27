@@ -1,7 +1,19 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, LoaderCircle, Maximize, Minimize, Minus, Plus, ShieldCheck } from '@lucide/vue'
+import {
+  ArrowLeft,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  Maximize,
+  Minimize,
+  Minus,
+  Plus,
+  RectangleVertical,
+  ShieldCheck,
+} from '@lucide/vue'
 
 import { api } from '../api/klien'
 import KotakPesan from '../components/KotakPesan.vue'
@@ -12,10 +24,36 @@ import { bacaPosisi, simpanPosisi } from '../utils/posisi'
 // Pembaca ebook: salinan ber-watermark milik pembeli diminta lewat GET /api/drm/ebook/<produk_id>/
 // (presigned URL 5 menit), diunduh sekali oleh PDF.js, lalu dirender per halaman ke canvas.
 // Tidak ada tombol unduh: salinan ini memuat identitas pembeli sebagai watermark.
+//
+// Tampilan dua halaman (revisi Tahap R): di layar lebar halaman ditampilkan berpasangan seperti buku yang
+// dibuka. Sampul depan (halaman 1) dan sampul belakang (halaman terakhir) tampil sendiri; halaman di antaranya
+// berpasangan genap–ganjil (2–3, 4–5, …). Pembaca bisa beralih ke satu halaman; pilihannya diingat peramban.
 const TINGKAT_ZOOM = [0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 const JEDA_SIAP_MS = 3000
 const BATAS_MENUNGGU = 40 // ±2 menit menunggu salinan disiapkan worker
-const PIKSEL_MAKS = 16_000_000 // batas ukuran canvas (lebar × tinggi piksel) agar memori tetap aman
+const PIKSEL_MAKS = 16_000_000 // batas total ukuran canvas (lebar × tinggi piksel) agar memori tetap aman
+const LEBAR_DUA_HALAMAN = 900 // lebar jendela minimal (px) untuk tampilan dua halaman
+const KUNCI_TATA_LETAK = 'polibatam-press.ebook-dua-halaman'
+
+// Bentangan seperti buku terbuka: [[1], [2, 3], [4, 5], …, [N]]. Bila jumlah halaman isi ganjil, halaman
+// sebelum sampul belakang tampil sendiri, contoh 9 halaman: [1] [2, 3] [4, 5] [6, 7] [8] [9].
+function susunBentangan(jumlah) {
+  if (jumlah <= 2) return Array.from({ length: jumlah }, (_, i) => [i + 1])
+  const hasil = [[1]]
+  for (let kiri = 2; kiri <= jumlah - 1; kiri += 2) hasil.push(kiri + 1 <= jumlah - 1 ? [kiri, kiri + 1] : [kiri])
+  hasil.push([jumlah])
+  return hasil
+}
+
+// Pilihan tata letak disimpan di peramban hanya sebagai kemudahan (null = belum pernah memilih).
+function bacaPilihanDua() {
+  try {
+    const nilai = localStorage.getItem(KUNCI_TATA_LETAK)
+    return nilai === null ? null : nilai === '1'
+  } catch {
+    return null
+  }
+}
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -33,20 +71,44 @@ const isianHalaman = ref('1')
 const layarPenuh = ref(false)
 const bisaLayarPenuh = typeof document !== 'undefined' && Boolean(document.fullscreenEnabled)
 
+const pilihanDua = ref(bacaPilihanDua())
+const layarLebar = ref(typeof window !== 'undefined' && window.innerWidth >= LEBAR_DUA_HALAMAN)
+// Dua halaman hanya di layar lebar; di layar sempit selalu satu halaman agar tulisan tetap terbaca.
+const duaHalaman = computed(() => layarLebar.value && pilihanDua.value !== false)
+
 const akar = ref(null)
 const area = ref(null)
-const kanvas = ref(null)
+const kanvasKiri = ref(null)
+const kanvasKanan = ref(null)
 
 let aktif = true
 let generasi = 0 // naik setiap kali ebook dimuat (ulang), agar proses muat yang lama berhenti diam-diam
 let dokumen = null
 let tugasMuat = null
-let tugasRender = null
+let tugasRender = []
 let nomorRender = 0
 let pewaktuUbahUkuran = null
 
 const judul = computed(() => info.value?.buku.judul || 'Ebook')
 const persen = computed(() => `${Math.round(skala.value * 100)}%`)
+
+const bentangan = computed(() => susunBentangan(jumlahHalaman.value))
+const indeksBentangan = computed(() => Math.max(0, bentangan.value.findIndex((b) => b.includes(halaman.value))))
+// Nomor halaman yang sedang tampil: satu halaman, atau satu bentangan (satu atau dua halaman).
+const halamanTampil = computed(() =>
+  duaHalaman.value ? bentangan.value[indeksBentangan.value] || [halaman.value] : [halaman.value],
+)
+const diAwal = computed(() => (duaHalaman.value ? indeksBentangan.value === 0 : halaman.value <= 1))
+const diAkhir = computed(() =>
+  duaHalaman.value ? indeksBentangan.value >= bentangan.value.length - 1 : halaman.value >= jumlahHalaman.value,
+)
+const teksHalamanTampil = computed(() => halamanTampil.value.join('–'))
+// Di sebelah isian nomor halaman (yang berisi halaman kiri): "– 3 dari 9" untuk bentangan 2–3.
+const teksDari = computed(() =>
+  halamanTampil.value.length === 2
+    ? `– ${halamanTampil.value[1]} dari ${jumlahHalaman.value}`
+    : `dari ${jumlahHalaman.value}`,
+)
 
 function tunggu(ms) {
   return new Promise((selesai) => setTimeout(selesai, ms))
@@ -76,7 +138,7 @@ async function mulai() {
   galat.value = ''
   kemajuan.value = 0
   // Muat ulang (tombol "Coba lagi"): dokumen dan worker PDF.js sebelumnya dilepas dulu.
-  tugasRender?.cancel()
+  batalkanRender()
   tugasMuat?.destroy()
   tugasMuat = null
   dokumen = null
@@ -99,7 +161,7 @@ async function mulai() {
     if (!aktif || gen !== generasi) return
     jumlahHalaman.value = dokumen.numPages
     const tersimpan = Math.round(bacaPosisi('ebook', produkId, auth.pengguna?.id))
-    halaman.value = Math.min(Math.max(1, tersimpan || 1), dokumen.numPages)
+    halaman.value = awalTampilan(Math.min(Math.max(1, tersimpan || 1), dokumen.numPages))
     isianHalaman.value = String(halaman.value)
     tahap.value = 'siap'
     await nextTick()
@@ -124,37 +186,50 @@ function tampilkan() {
   })
 }
 
-// Ukuran awal: satu halaman utuh terlihat (lebar dan tinggi area baca), dibatasi 50–200%.
-function skalaPas(halamanPdf) {
-  const dasar = halamanPdf.getViewport({ scale: 1 })
+// Ukuran awal: halaman (atau bentangan dua halaman) utuh terlihat di area baca, dibatasi 50–200%.
+function skalaPas(daftarHalaman) {
+  const dasar = daftarHalaman.map((h) => h.getViewport({ scale: 1 }))
+  const lebarTotal = dasar.reduce((jumlah, v) => jumlah + v.width, 0)
+  const tinggiMaks = Math.max(...dasar.map((v) => v.height))
   const lebar = Math.max(200, (area.value?.clientWidth || window.innerWidth) - 32)
   const tinggi = Math.max(300, (area.value?.clientHeight || window.innerHeight) - 32)
-  const nilai = Math.min(lebar / dasar.width, tinggi / dasar.height)
+  const nilai = Math.min(lebar / lebarTotal, tinggi / tinggiMaks)
   return Math.min(2, Math.max(0.5, nilai))
 }
 
+function batalkanRender() {
+  for (const tugas of tugasRender) tugas.cancel()
+  tugasRender = []
+}
+
 async function render() {
-  if (!dokumen || !kanvas.value) return
+  if (!dokumen || !kanvasKiri.value) return
   const nomor = ++nomorRender
-  const halamanPdf = await dokumen.getPage(halaman.value)
+  const daftarHalaman = await Promise.all(halamanTampil.value.map((n) => dokumen.getPage(n)))
   if (!aktif || nomor !== nomorRender) return
-  if (pas.value) skala.value = skalaPas(halamanPdf)
-  const viewport = halamanPdf.getViewport({ scale: skala.value })
-  const luas = viewport.width * viewport.height
-  const rasio = Math.min(window.devicePixelRatio || 1, Math.sqrt(PIKSEL_MAKS / luas))
-  const c = kanvas.value
-  tugasRender?.cancel()
-  c.width = Math.floor(viewport.width * rasio)
-  c.height = Math.floor(viewport.height * rasio)
-  c.style.width = `${Math.floor(viewport.width)}px`
-  c.style.height = `${Math.floor(viewport.height)}px`
-  tugasRender = halamanPdf.render({
-    canvas: c,
-    viewport,
-    transform: rasio !== 1 ? [rasio, 0, 0, rasio, 0, 0] : undefined,
+  if (pas.value) skala.value = skalaPas(daftarHalaman)
+  batalkanRender()
+  const kanvas = [kanvasKiri.value, kanvasKanan.value]
+  const janji = daftarHalaman.map((halamanPdf, i) => {
+    const viewport = halamanPdf.getViewport({ scale: skala.value })
+    const luas = viewport.width * viewport.height
+    // Batas piksel dibagi rata ke semua halaman yang tampil.
+    const rasio = Math.min(window.devicePixelRatio || 1, Math.sqrt(PIKSEL_MAKS / daftarHalaman.length / luas))
+    const c = kanvas[i]
+    c.width = Math.floor(viewport.width * rasio)
+    c.height = Math.floor(viewport.height * rasio)
+    c.style.width = `${Math.floor(viewport.width)}px`
+    c.style.height = `${Math.floor(viewport.height)}px`
+    const tugas = halamanPdf.render({
+      canvas: c,
+      viewport,
+      transform: rasio !== 1 ? [rasio, 0, 0, rasio, 0, 0] : undefined,
+    })
+    tugasRender.push(tugas)
+    return tugas.promise
   })
   try {
-    await tugasRender.promise
+    await Promise.all(janji)
   } catch (e) {
     if (e?.name === 'RenderingCancelledException') return
     throw e
@@ -162,14 +237,49 @@ async function render() {
   simpanPosisi('ebook', produkId, auth.pengguna?.id, halaman.value)
 }
 
+// Halaman pertama dari tampilan yang memuat halaman nomor (pada tampilan dua halaman: awal bentangannya).
+function awalTampilan(nomor) {
+  if (!duaHalaman.value) return nomor
+  return bentangan.value.find((b) => b.includes(nomor))?.[0] ?? nomor
+}
+
 function keHalaman(nomor) {
   if (!dokumen) return
-  const tujuan = Math.min(Math.max(1, Math.round(nomor) || 1), jumlahHalaman.value)
+  const tujuan = awalTampilan(Math.min(Math.max(1, Math.round(nomor) || 1), jumlahHalaman.value))
   isianHalaman.value = String(tujuan)
   if (tujuan === halaman.value) return
   halaman.value = tujuan
   if (area.value) area.value.scrollTop = 0
   tampilkan()
+}
+
+// Maju atau mundur satu tampilan: satu halaman, atau satu bentangan pada tampilan dua halaman.
+function geser(arah) {
+  if (!duaHalaman.value) {
+    keHalaman(halaman.value + arah)
+    return
+  }
+  const daftar = bentangan.value
+  const tujuan = daftar[Math.min(Math.max(0, indeksBentangan.value + arah), daftar.length - 1)]
+  if (tujuan) keHalaman(tujuan[0])
+}
+
+// Setelah tata letak berubah (pilihan pembaca atau lebar layar): posisi disesuaikan ke awal bentangan.
+function perbaruiTampilan() {
+  if (!dokumen) return
+  halaman.value = awalTampilan(halaman.value)
+  isianHalaman.value = String(halaman.value)
+  tampilkan()
+}
+
+function aturDuaHalaman(nilai) {
+  pilihanDua.value = nilai
+  try {
+    localStorage.setItem(KUNCI_TATA_LETAK, nilai ? '1' : '0')
+  } catch {
+    // Penyimpanan diblokir: pilihan berlaku sampai halaman ditutup.
+  }
+  perbaruiTampilan()
 }
 
 function terapkanIsian() {
@@ -206,9 +316,12 @@ function saatLayarPenuh() {
 }
 
 function saatUbahUkuran() {
-  if (!pas.value) return
+  const lebar = window.innerWidth >= LEBAR_DUA_HALAMAN
+  const tataLetakBerubah = lebar !== layarLebar.value
+  layarLebar.value = lebar
+  if (!pas.value && !tataLetakBerubah) return
   clearTimeout(pewaktuUbahUkuran)
-  pewaktuUbahUkuran = setTimeout(tampilkan, 150)
+  pewaktuUbahUkuran = setTimeout(perbaruiTampilan, 150)
 }
 
 // Pintasan papan ketik: panah kiri/kanan, Page Up/Down, Home/End (kecuali saat mengetik di isian).
@@ -216,10 +329,10 @@ function saatTombol(event) {
   if (tahap.value !== 'siap' || event.altKey || event.ctrlKey || event.metaKey) return
   if (event.target.closest?.('input, select, textarea')) return
   const aksi = {
-    ArrowLeft: () => keHalaman(halaman.value - 1),
-    PageUp: () => keHalaman(halaman.value - 1),
-    ArrowRight: () => keHalaman(halaman.value + 1),
-    PageDown: () => keHalaman(halaman.value + 1),
+    ArrowLeft: () => geser(-1),
+    PageUp: () => geser(-1),
+    ArrowRight: () => geser(1),
+    PageDown: () => geser(1),
     Home: () => keHalaman(1),
     End: () => keHalaman(jumlahHalaman.value),
   }[event.key]
@@ -250,7 +363,7 @@ function sentuhSelesai(event) {
   const dy = event.clientY - y
   const bisaDigeser = area.value && area.value.scrollWidth > area.value.clientWidth + 2
   if (jamak || bisaDigeser || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
-  keHalaman(halaman.value + (dx < 0 ? 1 : -1))
+  geser(dx < 0 ? 1 : -1)
 }
 
 function sentuhBatal(event) {
@@ -272,7 +385,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', saatLayarPenuh)
   window.removeEventListener('resize', saatUbahUkuran)
   clearTimeout(pewaktuUbahUkuran)
-  tugasRender?.cancel()
+  batalkanRender()
   tugasMuat?.destroy()
   dokumen = null
 })
@@ -298,8 +411,8 @@ onBeforeUnmount(() => {
             type="button"
             class="tombol-ikon"
             aria-label="Halaman sebelumnya"
-            :aria-disabled="halaman <= 1 ? 'true' : undefined"
-            @click="keHalaman(halaman - 1)"
+            :aria-disabled="diAwal ? 'true' : undefined"
+            @click="geser(-1)"
           >
             <ChevronLeft :size="22" />
           </button>
@@ -315,44 +428,68 @@ onBeforeUnmount(() => {
               @keydown.enter="terapkanIsian"
             >
           </label>
-          <span class="bilah__dari">dari {{ jumlahHalaman }}</span>
+          <span class="bilah__dari">{{ teksDari }}</span>
           <button
             type="button"
             class="tombol-ikon"
             aria-label="Halaman berikutnya"
-            :aria-disabled="halaman >= jumlahHalaman ? 'true' : undefined"
-            @click="keHalaman(halaman + 1)"
+            :aria-disabled="diAkhir ? 'true' : undefined"
+            @click="geser(1)"
           >
             <ChevronRight :size="22" />
           </button>
         </nav>
 
-        <div class="bilah__tampilan" role="group" aria-label="Ukuran tampilan">
-          <button type="button" class="tombol-ikon" aria-label="Perkecil" @click="ubahZoom(-1)">
-            <Minus :size="20" />
-          </button>
-          <button
-            type="button"
-            class="bilah__persen"
-            :aria-pressed="pas ? 'true' : 'false'"
-            :aria-label="`Ukuran ${persen}. Tekan untuk menyesuaikan halaman dengan layar`"
-            @click="sesuaikanLayar"
-          >
-            {{ persen }}
-          </button>
-          <button type="button" class="tombol-ikon" aria-label="Perbesar" @click="ubahZoom(1)">
-            <Plus :size="20" />
-          </button>
-          <button
-            v-if="bisaLayarPenuh"
-            type="button"
-            class="tombol-ikon bilah__layar-penuh"
-            :aria-label="layarPenuh ? 'Keluar dari layar penuh' : 'Layar penuh'"
-            :aria-pressed="layarPenuh ? 'true' : 'false'"
-            @click="alihLayarPenuh"
-          >
-            <component :is="layarPenuh ? Minimize : Maximize" :size="20" />
-          </button>
+        <div class="bilah__tampilan">
+          <div v-if="layarLebar" class="bilah__tata-letak" role="group" aria-label="Tata letak halaman">
+            <button
+              type="button"
+              class="tombol-ikon"
+              aria-label="Satu halaman"
+              title="Satu halaman"
+              :aria-pressed="duaHalaman ? 'false' : 'true'"
+              @click="aturDuaHalaman(false)"
+            >
+              <RectangleVertical :size="20" />
+            </button>
+            <button
+              type="button"
+              class="tombol-ikon"
+              aria-label="Dua halaman, seperti buku terbuka"
+              title="Dua halaman"
+              :aria-pressed="duaHalaman ? 'true' : 'false'"
+              @click="aturDuaHalaman(true)"
+            >
+              <BookOpen :size="20" />
+            </button>
+          </div>
+          <div class="bilah__zoom" role="group" aria-label="Ukuran tampilan">
+            <button type="button" class="tombol-ikon" aria-label="Perkecil" @click="ubahZoom(-1)">
+              <Minus :size="20" />
+            </button>
+            <button
+              type="button"
+              class="bilah__persen"
+              :aria-pressed="pas ? 'true' : 'false'"
+              :aria-label="`Ukuran ${persen}. Tekan untuk menyesuaikan halaman dengan layar`"
+              @click="sesuaikanLayar"
+            >
+              {{ persen }}
+            </button>
+            <button type="button" class="tombol-ikon" aria-label="Perbesar" @click="ubahZoom(1)">
+              <Plus :size="20" />
+            </button>
+            <button
+              v-if="bisaLayarPenuh"
+              type="button"
+              class="tombol-ikon bilah__layar-penuh"
+              :aria-label="layarPenuh ? 'Keluar dari layar penuh' : 'Layar penuh'"
+              :aria-pressed="layarPenuh ? 'true' : 'false'"
+              @click="alihLayarPenuh"
+            >
+              <component :is="layarPenuh ? Minimize : Maximize" :size="20" />
+            </button>
+          </div>
         </div>
       </template>
     </header>
@@ -407,16 +544,29 @@ onBeforeUnmount(() => {
         <p v-else class="keadaan__teks">Memuat ebook…</p>
       </div>
 
-      <canvas
-        v-show="tahap === 'siap'"
-        ref="kanvas"
-        class="halaman-pdf"
-        role="img"
-        :aria-label="`Halaman ${halaman} dari ${jumlahHalaman}, ${judul}`"
-      />
+      <div v-show="tahap === 'siap'" class="bentangan" :class="{ 'bentangan--dua': halamanTampil.length === 2 }">
+        <div class="lembar">
+          <canvas
+            ref="kanvasKiri"
+            class="halaman-pdf"
+            role="img"
+            :aria-label="`Halaman ${halamanTampil[0]} dari ${jumlahHalaman}, ${judul}`"
+          />
+        </div>
+        <div v-show="halamanTampil.length === 2" class="lembar">
+          <canvas
+            ref="kanvasKanan"
+            class="halaman-pdf"
+            role="img"
+            :aria-label="`Halaman ${halamanTampil[1]} dari ${jumlahHalaman}, ${judul}`"
+          />
+        </div>
+      </div>
     </div>
 
-    <p class="sr-only" aria-live="polite">{{ tahap === 'siap' ? `Halaman ${halaman} dari ${jumlahHalaman}` : '' }}</p>
+    <p class="sr-only" aria-live="polite">
+      {{ tahap === 'siap' ? `Halaman ${teksHalamanTampil} dari ${jumlahHalaman}` : '' }}
+    </p>
   </div>
 </template>
 
@@ -425,7 +575,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  background: #dfe3ea;
+  background: var(--latar-pembaca);
 }
 
 .bilah {
@@ -485,10 +635,27 @@ onBeforeUnmount(() => {
 }
 
 .bilah__halaman,
-.bilah__tampilan {
+.bilah__tampilan,
+.bilah__tata-letak,
+.bilah__zoom {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.bilah__tampilan {
+  gap: 12px;
+}
+
+/* Pilihan satu atau dua halaman: tombol yang aktif diberi latar. */
+.bilah__tata-letak {
+  padding-right: 12px;
+  border-right: 1px solid var(--garis);
+}
+
+.bilah__tata-letak .tombol-ikon[aria-pressed='true'] {
+  background: var(--navy-50);
+  color: var(--navy);
 }
 
 .bilah__halaman .tombol-ikon[aria-disabled='true'] {
@@ -574,11 +741,42 @@ onBeforeUnmount(() => {
   touch-action: pan-y pinch-zoom;
 }
 
-.halaman-pdf {
+/* Satu halaman, atau dua halaman berdampingan tanpa celah seperti buku terbuka. */
+.bentangan {
+  display: flex;
   flex: none;
   margin: auto;
-  background: #fff;
   box-shadow: 0 4px 18px rgba(20, 38, 77, 0.18);
+}
+
+.lembar {
+  position: relative;
+  display: flex;
+}
+
+.halaman-pdf {
+  display: block;
+  background: #fff;
+}
+
+/* Bayangan lipatan di tengah bentangan (punggung buku). */
+.bentangan--dua .lembar::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  content: '';
+  pointer-events: none;
+}
+
+.bentangan--dua .lembar:first-child::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0));
+}
+
+.bentangan--dua .lembar:last-child::after {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
 }
 
 .keadaan {
@@ -624,7 +822,7 @@ onBeforeUnmount(() => {
 .kemajuan span {
   display: block;
   height: 100%;
-  background: var(--navy);
+  background: var(--isi-utama);
   transition: width 0.2s;
 }
 
@@ -648,7 +846,8 @@ onBeforeUnmount(() => {
 
   /* Navigasi halaman dan ukuran tampilan berbagi satu baris. */
   .bilah__halaman,
-  .bilah__tampilan {
+  .bilah__tampilan,
+  .bilah__zoom {
     gap: 0;
   }
 
@@ -680,7 +879,7 @@ onBeforeUnmount(() => {
 
 /* Layar penuh jarang didukung untuk elemen selain video di ponsel; tombolnya disembunyikan di layar sempit. */
 @media (max-width: 479px) {
-  .bilah__tampilan .bilah__layar-penuh {
+  .bilah__zoom .bilah__layar-penuh {
     display: none;
   }
 }

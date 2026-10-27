@@ -105,13 +105,30 @@ export const useAuthStore = defineStore('auth', {
       this.pengguna = data.pengguna
     },
 
-    // Hanya membuat akun; halaman Daftar lalu memanggil masukDengan() agar kegagalan keduanya bisa dibedakan.
+    // Hanya membuat akun. Pembeli lalu masuk sendiri di halaman Masuk (revisi Tahap R: tanpa login otomatis).
     async daftar(isian) {
       return api.post('/auth/registrasi/', isian, { tanpaToken: true })
     },
 
     async perbaruiProfil(isian) {
       this.pengguna = await api.patch('/auth/profil/', isian)
+    },
+
+    // Profil terbaru dari server (misalnya setelah checkout menyimpan alamat ke profil). Kegagalan diabaikan.
+    async muatProfil() {
+      try {
+        this.pengguna = await api.get('/auth/profil/')
+      } catch {
+        // Data lama tetap dipakai; halaman Profil memuat ulang sendiri saat dibuka.
+      }
+    },
+
+    // Ubah kata sandi: backend mengeluarkan semua sesi lain lalu memberi pasangan token baru untuk perangkat ini.
+    async ubahSandi(passwordLama, passwordBaru) {
+      const data = await api.post('/auth/ubah-sandi/', { password_lama: passwordLama, password_baru: passwordBaru })
+      this.akses = data.access
+      simpanRefresh(data.refresh)
+      return data
     },
 
     // Logout mem-blacklist refresh token terbaru. Access token disegarkan dulu agar yang dikirim

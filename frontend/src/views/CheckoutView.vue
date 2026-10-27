@@ -6,6 +6,7 @@ import { Check, QrCode, Store, Truck } from '@lucide/vue'
 import { api } from '../api/klien'
 import KotakPesan from '../components/KotakPesan.vue'
 import LangkahBeli from '../components/LangkahBeli.vue'
+import ModalKonfirmasi from '../components/ModalKonfirmasi.vue'
 import RingkasanPesanan from '../components/RingkasanPesanan.vue'
 import { useAuthStore } from '../stores/auth'
 import { useKeranjangStore } from '../stores/keranjang'
@@ -24,15 +25,51 @@ const galat = ref(null)
 const galatIsian = ref({})
 const mengirim = ref(false)
 
-// Nama dan telepon penerima diisi dari profil; boleh diubah. Alamat tidak diisi otomatis karena
-// alamat profil berupa teks bebas, sedangkan kecamatan dipilih terpisah.
+// Nama, telepon, alamat, dan kecamatan diisi dari profil; boleh diubah untuk pesanan ini. Telepon, alamat, dan
+// kecamatan yang diketik juga disimpan ke profil (revisi Tahap R): kolom profil yang masih kosong langsung
+// diisi backend, sedangkan kolom yang sudah berisi nilai lain hanya diganti bila pembeli menyetujui modal.
 const isian = reactive({
   metode_pengiriman: '',
   nama_penerima: auth.pengguna?.nama_lengkap || '',
   no_telepon_penerima: auth.pengguna?.no_telepon || '',
-  alamat: '',
+  alamat: auth.pengguna?.alamat || '',
   kecamatan: '',
 })
+
+const LABEL_PROFIL = { no_telepon: 'Nomor telepon', alamat: 'Alamat', kecamatan: 'Kecamatan' }
+
+function rapikan(teks) {
+  return (teks || '').split(/\s+/).filter(Boolean).join(' ')
+}
+
+// Kolom profil yang akan berubah nilainya bila isian checkout disimpan ke profil.
+function perubahanProfil() {
+  const profil = auth.pengguna || {}
+  const baru = { no_telepon: isian.no_telepon_penerima.trim() }
+  if (isian.metode_pengiriman === 'delivery') {
+    baru.alamat = rapikan(isian.alamat)
+    baru.kecamatan = isian.kecamatan
+  }
+  return Object.entries(baru)
+    .filter(([kolom, nilai]) => nilai && rapikan(profil[kolom]) && rapikan(profil[kolom]) !== nilai)
+    .map(([kolom, nilai]) => ({ kolom, label: LABEL_PROFIL[kolom], lama: rapikan(profil[kolom]), baru: nilai }))
+}
+
+// Modal "perbarui profil?": diselesaikan dengan true (perbarui), false (pesanan ini saja), atau null (batal).
+const modalProfil = reactive({ buka: false, perubahan: [] })
+let jawabModal = null
+
+function tanyaPerbaruiProfil(perubahan) {
+  modalProfil.perubahan = perubahan
+  modalProfil.buka = true
+  return new Promise((selesai) => {
+    jawabModal = (jawaban) => {
+      modalProfil.buka = false
+      jawabModal = null
+      selesai(jawaban)
+    }
+  })
+}
 
 // Pesan galat sebuah isian hilang begitu isian itu diubah.
 watch(
@@ -52,6 +89,11 @@ async function muat() {
     const data = await api.get('/pesanan/checkout/')
     opsi.value = data
     keranjang.simpan(data.keranjang)
+    // Kecamatan profil dipakai bila termasuk daftar kecamatan delivery.
+    const kecamatanProfil = auth.pengguna?.kecamatan
+    if (!isian.kecamatan && data.pengiriman.delivery.kecamatan.includes(kecamatanProfil)) {
+      isian.kecamatan = kecamatanProfil
+    }
   } catch (e) {
     if (e.status !== 401) galatMuat.value = e.detail
   }
@@ -130,12 +172,13 @@ function atributIsian(nama, id) {
   return { 'aria-invalid': 'true', 'aria-describedby': `${id}-galat` }
 }
 
-function dataKirim() {
+function dataKirim(simpanKeProfil) {
   if (!perluKirim.value) return {}
   const data = {
     metode_pengiriman: isian.metode_pengiriman,
     nama_penerima: isian.nama_penerima.trim(),
     no_telepon_penerima: isian.no_telepon_penerima.trim(),
+    simpan_ke_profil: simpanKeProfil,
   }
   if (isian.metode_pengiriman === 'delivery') {
     data.alamat = isian.alamat.trim()
@@ -152,11 +195,19 @@ async function buatPesanan() {
     fokusGalatPertama()
     return
   }
+  let simpanKeProfil = false
+  const perubahan = perluKirim.value ? perubahanProfil() : []
+  if (perubahan.length) {
+    const jawaban = await tanyaPerbaruiProfil(perubahan)
+    if (jawaban === null) return
+    simpanKeProfil = jawaban
+  }
   mengirim.value = true
   try {
-    const pesanan = await api.post('/pesanan/checkout/', dataKirim())
-    // Keranjang sudah dikosongkan backend saat pesanan dibuat.
+    const pesanan = await api.post('/pesanan/checkout/', dataKirim(simpanKeProfil))
+    // Keranjang sudah dikosongkan backend saat pesanan dibuat; profil mungkin ikut diperbarui.
     keranjang.muat()
+    auth.muatProfil()
     tandaiBukaOtomatis(pesanan.nomor)
     await router.replace({ name: 'pembayaran', params: { nomor: pesanan.nomor } })
   } catch (e) {
@@ -300,7 +351,10 @@ async function buatPesanan() {
                   </p>
                 </div>
               </div>
-              <p class="isian__petunjuk">Nama dan telepon diisi dari profil; boleh diubah untuk pesanan ini.</p>
+              <p class="isian__petunjuk">
+                Data diisi dari profil dan boleh diubah. Telepon{{ isian.metode_pengiriman === 'delivery' ? ', alamat, dan kecamatan' : '' }}
+                yang baru juga bisa disimpan ke profil.
+              </p>
 
               <template v-if="isian.metode_pengiriman === 'delivery'">
                 <div class="isian">
@@ -394,10 +448,78 @@ async function buatPesanan() {
         </RingkasanPesanan>
       </div>
     </template>
+
+    <ModalKonfirmasi
+      :buka="modalProfil.buka"
+      judul="Ubah data di profil?"
+      label-ya="Ya, ubah profil"
+      label-tidak="Tidak, untuk pesanan ini saja"
+      @ya="jawabModal?.(true)"
+      @tidak="jawabModal?.(false)"
+      @batal="jawabModal?.(null)"
+    >
+      <p>Data pengiriman yang Anda isi berbeda dengan data di profil. Apakah Anda yakin ingin mengubah data profil?</p>
+      <dl class="perubahan">
+        <div v-for="ubah in modalProfil.perubahan" :key="ubah.kolom" class="perubahan__baris">
+          <dt>{{ ubah.label }}</dt>
+          <dd>
+            <span class="perubahan__lama">{{ ubah.lama }}</span>
+            <span class="perubahan__panah" aria-hidden="true">→</span>
+            <span class="sr-only">menjadi</span>
+            <span class="perubahan__baru">{{ ubah.baru }}</span>
+          </dd>
+        </div>
+      </dl>
+      <p class="perubahan__catatan">Pilihan mana pun, pesanan ini tetap memakai data yang Anda isi.</p>
+    </ModalKonfirmasi>
   </div>
 </template>
 
 <style scoped>
+.perubahan {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--garis-lembut);
+  border-radius: var(--radius);
+  background: var(--latar);
+}
+
+.perubahan__baris dt {
+  color: var(--teks-redup);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.perubahan__baris dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.perubahan__lama {
+  color: var(--teks-redup);
+  text-decoration: line-through;
+}
+
+.perubahan__panah {
+  color: var(--teks-redup);
+}
+
+.perubahan__baru {
+  font-weight: 600;
+}
+
+.perubahan__catatan {
+  color: var(--teks-redup);
+  font-size: 0.875rem;
+}
+
 .checkout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;

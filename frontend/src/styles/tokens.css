@@ -4,8 +4,18 @@
  * Kontras (WCAG 2.1): putih di atas biru tua 11,5:1; teks gelap di atas jingga 5,4:1; biru tua di atas
  * biru muda 6,0:1. Putih di atas jingga hanya 3,1:1, jadi jingga dipakai untuk aksen (garis menu aktif,
  * lencana bertulisan gelap, ornamen), bukan latar teks putih.
+ *
+ * Tema (revisi Tahap R): terang, gelap, atau mengikuti sistem. Pilihan disimpan di peramban dan dipasang
+ * sebagai atribut data-tema pada <html> (lihat index.html dan src/utils/tema.js). Tanpa atribut itu,
+ * tema mengikuti prefers-color-scheme.
+ * - --navy dan turunannya dipakai untuk teks aksen, tautan, garis, dan fokus; di tema gelap menjadi biru
+ *   muda agar terbaca di latar gelap.
+ * - --isi-utama dipakai untuk bidang berisi tulisan putih (tombol utama, pil aktif, avatar). Di tema gelap
+ *   tetap biru, sedikit lebih terang, dengan kontras tulisan putih tetap di atas 6:1.
  */
 :root {
+  color-scheme: light;
+
   --navy: #1e376c;
   --navy-900: #14264d;
   --navy-100: #dbe2ef;
@@ -15,6 +25,15 @@
   --jingga: #f2692a;
   --jingga-50: #fef0e9;
 
+  --isi-utama: #1e376c;
+  --isi-utama-hover: #14264d;
+  --teks-di-isi: #ffffff;
+  --teks-di-jingga: #1a1f2b;
+  /* Bidang bermerek berukuran besar (hero beranda) dan pesan melayang: tetap biru tua di kedua tema. */
+  --latar-merek: #1e376c;
+  --latar-pesan: #14264d;
+  --latar-pembaca: #dfe3ea;
+
   --teks: #1a1f2b;
   --teks-redup: #4a5161;
   --garis: #cfd5e1;
@@ -22,11 +41,17 @@
   --garis-isian: #8a93a6;
   --latar: #f5f7fa;
   --permukaan: #ffffff;
+  --permukaan-redup: #eef1f5;
+  --kerangka-1: #e9edf3;
+  --kerangka-2: #f3f5f9;
+  --tirai: rgba(20, 38, 77, 0.45);
 
   --galat: #b42318;
   --galat-50: #fef3f2;
+  --galat-garis: #f4c7c3;
   --sukses: #067647;
   --sukses-50: #ecfdf3;
+  --sukses-garis: #abefc6;
 
   --font-judul: 'Montserrat', system-ui, sans-serif;
   --font-isi: 'Open Sans', system-ui, sans-serif;
@@ -36,4 +61,88 @@
   --radius-besar: 12px;
   --bayangan: 0 8px 24px rgba(20, 38, 77, 0.14);
   --lebar-wadah: 1200px;
+}
+
+/* Nilai tema gelap ditulis dua kali (pilihan "Gelap" dan "Sistem" saat sistem memakai mode gelap).
+   Latar sengaja biru sangat gelap, bukan hitam pekat, agar teks tidak terasa menyilaukan. */
+:root[data-tema='gelap'] {
+  color-scheme: dark;
+
+  --navy: #9db8ff;
+  --navy-900: #c4d4ff;
+  --navy-100: #2a3a60;
+  --navy-50: #1d2840;
+  --biru: #57c9e8;
+  --biru-50: #12303b;
+  --jingga: #f2692a;
+  --jingga-50: #3b2316;
+
+  --isi-utama: #3456a3;
+  --isi-utama-hover: #40639f;
+  --latar-merek: #172a52;
+  --latar-pesan: #24345a;
+  --latar-pembaca: #0b1019;
+
+  --teks: #e6e9f0;
+  --teks-redup: #a9b1c3;
+  --garis: #333d55;
+  --garis-lembut: #262f45;
+  --garis-isian: #66718c;
+  --latar: #0f1420;
+  --permukaan: #171d2b;
+  --permukaan-redup: #1f2738;
+  --kerangka-1: #1f2738;
+  --kerangka-2: #283247;
+  --tirai: rgba(3, 6, 14, 0.7);
+
+  --galat: #ff8f86;
+  --galat-50: #3a1715;
+  --galat-garis: #6e2b26;
+  --sukses: #6ed6a0;
+  --sukses-50: #10301f;
+  --sukses-garis: #1f5a3c;
+
+  --bayangan: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) {
+    color-scheme: dark;
+
+    --navy: #9db8ff;
+    --navy-900: #c4d4ff;
+    --navy-100: #2a3a60;
+    --navy-50: #1d2840;
+    --biru: #57c9e8;
+    --biru-50: #12303b;
+    --jingga: #f2692a;
+    --jingga-50: #3b2316;
+
+    --isi-utama: #3456a3;
+    --isi-utama-hover: #40639f;
+    --latar-merek: #172a52;
+    --latar-pesan: #24345a;
+    --latar-pembaca: #0b1019;
+
+    --teks: #e6e9f0;
+    --teks-redup: #a9b1c3;
+    --garis: #333d55;
+    --garis-lembut: #262f45;
+    --garis-isian: #66718c;
+    --latar: #0f1420;
+    --permukaan: #171d2b;
+    --permukaan-redup: #1f2738;
+    --kerangka-1: #1f2738;
+    --kerangka-2: #283247;
+    --tirai: rgba(3, 6, 14, 0.7);
+
+    --galat: #ff8f86;
+    --galat-50: #3a1715;
+    --galat-garis: #6e2b26;
+    --sukses: #6ed6a0;
+    --sukses-50: #10301f;
+    --sukses-garis: #1f5a3c;
+
+    --bayangan: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
 }

@@ -1,0 +1,11 @@
+{% autoescape off %}Halo {{ user.nama_lengkap|default:user.email }},
+
+Kami menerima permintaan untuk mengatur ulang kata sandi akun admin Polibatam Press dengan email {{ email }}.
+Buka tautan berikut untuk membuat kata sandi baru. Tautan berlaku {{ menit }} menit dan hanya bisa dipakai sekali.
+
+{{ protocol }}://{{ domain }}{% url 'password_reset_confirm' uidb64=uid token=token %}
+
+Bila Anda tidak meminta ini, abaikan email ini; kata sandi Anda tidak berubah.
+--
+Email ini dikirim otomatis oleh Marketplace Polibatam Press, Politeknik Negeri Batam. Mohon tidak membalas email ini.
+{% endautoescape %}

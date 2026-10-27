@@ -3,9 +3,11 @@ import { computed, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { BookOpen, FileText, LogOut, ReceiptText } from '@lucide/vue'
 
+import IsianSandi from '../components/auth/IsianSandi.vue'
 import KotakPesan from '../components/KotakPesan.vue'
 import { useAuthStore } from '../stores/auth'
 import { usePesanStore } from '../stores/pesan'
+import { KECAMATAN_KOTA_BATAM } from '../utils/wilayah'
 
 const auth = useAuthStore()
 const pesan = usePesanStore()
@@ -14,6 +16,7 @@ const router = useRouter()
 const isian = reactive({
   nama_lengkap: auth.pengguna?.nama_lengkap || '',
   no_telepon: auth.pengguna?.no_telepon || '',
+  kecamatan: auth.pengguna?.kecamatan || '',
   alamat: auth.pengguna?.alamat || '',
 })
 const galat = ref('')
@@ -39,6 +42,34 @@ async function simpan() {
   }
 }
 
+// Ubah kata sandi (revisi Tahap R). Perangkat lain dikeluarkan; perangkat ini tetap masuk dengan token baru.
+const sandi = reactive({ lama: '', baru: '', ulangi: '' })
+const galatSandi = ref('')
+const galatIsianSandi = ref({})
+const berhasilSandi = ref('')
+const mengubahSandi = ref(false)
+
+async function ubahSandi() {
+  galatSandi.value = ''
+  galatIsianSandi.value = {}
+  berhasilSandi.value = ''
+  if (sandi.baru !== sandi.ulangi) {
+    galatIsianSandi.value = { ulangi: 'Ulangi kata sandi harus sama dengan kata sandi baru.' }
+    return
+  }
+  mengubahSandi.value = true
+  try {
+    const hasil = await auth.ubahSandi(sandi.lama, sandi.baru)
+    berhasilSandi.value = hasil.detail
+    Object.assign(sandi, { lama: '', baru: '', ulangi: '' })
+  } catch (e) {
+    galatIsianSandi.value = { lama: e.isian.password_lama, baru: e.isian.password_baru }
+    galatSandi.value = e.isian.password_lama || e.isian.password_baru ? '' : e.detail
+  } finally {
+    mengubahSandi.value = false
+  }
+}
+
 async function keluar() {
   await auth.keluar()
   pesan.tampilkan('Anda sudah keluar.', { jenis: 'info' })
@@ -54,10 +85,11 @@ function atributIsian(nama) {
   <div class="wadah halaman">
     <div class="halaman__kepala">
       <h1 class="halaman__judul">Profil</h1>
-      <p class="halaman__sub">Nama dan telepon di sini dipakai sebagai data penerima saat checkout.</p>
+      <p class="halaman__sub">Nama, telepon, kecamatan, dan alamat di sini dipakai mengisi otomatis checkout.</p>
     </div>
 
     <div class="profil">
+      <div class="profil__kiri">
       <section class="kartu kartu--isi profil__data" aria-labelledby="judul-data">
         <h2 id="judul-data" class="profil__subjudul">Data akun</h2>
         <KotakPesan v-if="berhasil" jenis="sukses">{{ berhasil }}</KotakPesan>
@@ -102,6 +134,15 @@ function atributIsian(nama) {
               <p v-else class="isian__petunjuk">Contoh: 0812-3456-7890</p>
             </div>
           </div>
+          <div class="isian profil__kecamatan">
+            <label for="profil-kecamatan" class="isian__label">Kecamatan</label>
+            <select id="profil-kecamatan" v-model="isian.kecamatan" class="isian__kontrol" v-bind="atributIsian('kecamatan')">
+              <option value="">Belum dipilih</option>
+              <option v-for="k in KECAMATAN_KOTA_BATAM" :key="k" :value="k">{{ k }}</option>
+            </select>
+            <p v-if="galatIsian.kecamatan" id="profil-kecamatan-galat" class="isian__galat">{{ galatIsian.kecamatan }}</p>
+            <p v-else class="isian__petunjuk">Kecamatan di Kota Batam, untuk checkout delivery.</p>
+          </div>
           <div class="isian">
             <label for="profil-alamat" class="isian__label">Alamat</label>
             <textarea
@@ -121,6 +162,44 @@ function atributIsian(nama) {
           </div>
         </form>
       </section>
+
+      <section class="kartu kartu--isi profil__data" aria-labelledby="judul-sandi">
+        <div class="profil__kepala-bagian">
+          <h2 id="judul-sandi" class="profil__subjudul">Ubah kata sandi</h2>
+          <p class="isian__petunjuk">
+            Setelah diubah, perangkat lain yang masih masuk ke akun ini dikeluarkan, dan pemberitahuan dikirim ke
+            email Anda.
+          </p>
+        </div>
+        <KotakPesan v-if="berhasilSandi" jenis="sukses">{{ berhasilSandi }}</KotakPesan>
+        <KotakPesan v-if="galatSandi" jenis="galat">{{ galatSandi }}</KotakPesan>
+        <form class="formulir" novalidate @submit.prevent="ubahSandi">
+          <IsianSandi id="sandi-lama" v-model="sandi.lama" label="Kata sandi saat ini" :galat="galatIsianSandi.lama" />
+          <div class="baris-isian">
+            <IsianSandi
+              id="sandi-baru"
+              v-model="sandi.baru"
+              label="Kata sandi baru"
+              autocomplete="new-password"
+              :galat="galatIsianSandi.baru"
+            />
+            <IsianSandi
+              id="sandi-ulangi"
+              v-model="sandi.ulangi"
+              label="Ulangi kata sandi baru"
+              autocomplete="new-password"
+              :galat="galatIsianSandi.ulangi"
+            />
+          </div>
+          <p class="isian__petunjuk">Minimal 8 karakter; tidak boleh mirip data akun, terlalu umum, atau hanya angka.</p>
+          <div>
+            <button type="submit" class="tombol tombol--utama tombol--besar" :disabled="mengubahSandi">
+              {{ mengubahSandi ? 'Menyimpan…' : 'Ubah kata sandi' }}
+            </button>
+          </div>
+        </form>
+      </section>
+      </div>
 
       <aside class="kartu kartu--isi profil__akun" aria-labelledby="judul-akun">
         <div class="profil__identitas">
@@ -153,12 +232,29 @@ function atributIsian(nama) {
   gap: 24px;
 }
 
-.profil__data {
+.profil__kiri {
   display: flex;
   flex: 2 1 560px;
   flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.profil__data {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.profil__kepala-bagian {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profil__kecamatan {
+  max-width: 320px;
 }
 
 .profil__subjudul {
@@ -187,7 +283,7 @@ function atributIsian(nama) {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--isi-utama);
   color: #fff;
   font-size: 1.25rem;
   font-weight: 700;
